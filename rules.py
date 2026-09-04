@@ -80,8 +80,12 @@ ADAPTER_DIALECTS = [
         "down_pattern": r"\.lora_down\.weight$",
         "up_pattern": r"\.lora_up\.weight$",
         "verified": "measured",
-        "note": T("The most widely supported LoRA layout. A1111, ComfyUI and Forge read it as-is.",
-                  "A1111 / ComfyUI / Forge がそのまま読める最も一般的な LoRA 形式"),
+        "note": T("The most widely supported LoRA layout. A1111, ComfyUI and Forge read it "
+                  "as-is. LyCORIS LoCon and DyLoRA serialise to the same key names, so they "
+                  "are indistinguishable from a plain LoRA here.",
+                  "A1111 / ComfyUI / Forge がそのまま読める最も一般的な LoRA 形式。"
+                  "LyCORIS の LoCon と DyLoRA も同じキー名で保存されるため、"
+                  "通常の LoRA とは区別できない"),
     },
     {
         # Measured: OneTrainer writes this under workspace/.../backup/, while its
@@ -145,8 +149,9 @@ ADAPTER_DIALECTS = [
         "id": "lycoris_lokr",
         "name": T("LyCORIS LoKr (Kronecker product)", "LyCORIS LoKr (クロネッカー積)"),
         "prefix_pattern": None,
-        "patterns": [r"\.lokr_w1$", r"\.lokr_w1_a$", r"\.lokr_w2$",
-                     r"\.lokr_w2_a$", r"\.lokr_w2_b$"],
+        "patterns": [r"\.lokr_w1$", r"\.lokr_w1_a$", r"\.lokr_w1_b$",
+                     r"\.lokr_w2$", r"\.lokr_w2_a$", r"\.lokr_w2_b$",
+                     r"\.lokr_t2$"],
         "alpha_pattern": r"\.alpha$",
         "down_pattern": None,
         "up_pattern": None,
@@ -180,6 +185,9 @@ ADAPTER_DIALECTS = [
                   "条件付けの次元はファイル名に入っていることが多い（v01032064e なら 32/64）"),
     },
     {
+        # lycoris/modules/full.py, custom_state_dict(): stores "diff" and,
+        # when the target had one, "diff_b" - the delta from the original
+        # weight rather than the weight itself.
         "id": "lycoris_full",
         "name": T("LyCORIS full / diff (full delta)", "LyCORIS full / diff (全差分)"),
         "prefix_pattern": None,
@@ -187,48 +195,64 @@ ADAPTER_DIALECTS = [
         "alpha_pattern": None,
         "down_pattern": None,
         "up_pattern": None,
-        "verified": "unverified",
+        "verified": "derived",
         "note": T("Stores the delta itself rather than a low-rank approximation, so the file is large.",
                   "低ランク近似ではなく差分そのものを持つ。ファイルサイズが大きい"),
     },
     {
+        # lycoris/modules/glora.py: a1/a2/b1/b2 are nn.Modules, so their weights
+        # land as a1.weight etc. bm.weight appears under Tucker decomposition.
+        # a1.weight is (rank, in_dim), so the rank is its first axis.
         "id": "lycoris_glora",
         "name": T("LyCORIS GLoRA", "LyCORIS GLoRA"),
         "prefix_pattern": None,
-        "patterns": [r"\.a1\.weight$", r"\.a2\.weight$", r"\.b1\.weight$"],
+        "patterns": [r"\.a1\.weight$", r"\.a2\.weight$",
+                     r"\.b1\.weight$", r"\.b2\.weight$", r"\.bm\.weight$"],
         "alpha_pattern": r"\.alpha$",
         "down_pattern": r"\.a1\.weight$",
         "up_pattern": r"\.b1\.weight$",
-        "verified": "unverified",
+        "verified": "derived",
         "note": T("Needs LyCORIS support.", "LyCORIS 拡張が必要"),
     },
     {
+        # lycoris/modules/ia3.py registers exactly two things: a parameter named
+        # "weight" and a buffer named "on_input". There is no "ia3_weight" key -
+        # an earlier version of this rule invented one. Since a bare ".weight"
+        # matches almost anything, on_input is the only usable marker.
         "id": "ia3",
         "name": T("(IA)^3", "(IA)^3"),
         "prefix_pattern": None,
-        "patterns": [r"\.on_input$", r"\.ia3_weight$"],
+        "patterns": [r"\.on_input$"],
         "alpha_pattern": None,
         "down_pattern": None,
         "up_pattern": None,
-        "verified": "unverified",
-        "note": T("Support is limited.", "対応実装が限られる"),
+        "verified": "derived",
+        "note": T("Support is limited. Identified by the on_input buffer, since its "
+                  "other tensor is just called \"weight\".",
+                  "対応実装が限られる。もう一方のテンソル名が \"weight\" なので、"
+                  "on_input バッファでのみ識別している"),
     },
     {
-        # From lycoris/modules/diag_oft.py: the module registers oft_blocks
-        # (block_num, block_size, block_size), an optional rescale, and an
-        # alpha buffer. There is no "oft_diag" key - an earlier version of this
-        # rule invented one.
+        # diag_oft.py and boft.py both register oft_blocks, an optional rescale
+        # and an alpha buffer, and nothing else. No key starts with "boft" -
+        # boft_b and boft_m are plain Python attributes, never serialised. An
+        # earlier version of this rule looked for "oft_diag" and "boft_", both
+        # of which were invented.
+        # The two variants differ only in tensor rank:
+        #   DiagOFT  oft_blocks (block_num, block_size, block_size)      -> 3 dims
+        #   BOFT     oft_blocks (m, block_num, block_size, block_size)   -> 4 dims
         "id": "oft",
         "name": T("OFT / BOFT (orthogonal finetuning)", "OFT / BOFT (直交微調整)"),
         "prefix_pattern": None,
-        "patterns": [r"\.oft_blocks$", r"\.rescale$", r"\.boft_"],
+        "patterns": [r"\.oft_blocks$", r"\.rescale$"],
         "alpha_pattern": r"\.alpha$",
         "down_pattern": None,
         "up_pattern": None,
         "verified": "derived",
-        "note": T("Needs LyCORIS support. The BOFT variant is a separate module and "
-                  "its key names have not been checked.",
-                  "LyCORIS 拡張が必要。BOFT は別モジュールで、キー名は未確認"),
+        "note": T("Needs LyCORIS support. A 3-dimensional oft_blocks means diagonal OFT, "
+                  "4-dimensional means the butterfly variant (BOFT).",
+                  "LyCORIS 拡張が必要。oft_blocks が 3 次元なら対角 OFT、"
+                  "4 次元なら butterfly 版 (BOFT)"),
     },
     {
         "id": "textual_inversion",

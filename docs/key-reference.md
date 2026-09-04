@@ -240,6 +240,24 @@ A third control format, unrelated to either ControlNet layout:
 - The conditioning width is usually encoded in the filename
   (`v01032064e` → 32/64), not recoverable from the header
 
+## Three keys that never existed
+
+Reading LyCORIS turned up three keys this project had been matching against that
+appear nowhere in the implementation:
+
+| Invented key | Where it was used | What is actually there |
+| --- | --- | --- |
+| `oft_diag` | OFT rule | `oft_blocks`, `rescale`, `alpha` |
+| `boft_*` | OFT rule, for the butterfly variant | nothing — `boft_b` and `boft_m` are Python attributes, never serialised |
+| `ia3_weight` | (IA)^3 rule | a parameter named `weight`, plus an `on_input` buffer |
+
+All three came from writing rules that sounded plausible instead of checking. They
+would never have matched anything, and the failure mode is silent: the file comes
+back unidentified rather than raising an error.
+
+This is the reason for the `unverified` tag and its runtime marker. A rule nobody
+has checked is a guess, and it should look like one.
+
 ## A trap worth naming
 
 Normalised keys have `.weight` and `.bias` stripped, so `quant_conv.weight`
@@ -259,32 +277,51 @@ and are marked `unverified`:
 | FLUX.1 (`double_blocks`, `single_blocks`, `img_in`) | the repository is gated |
 | SD3 / SD3.5 (`joint_blocks`) | gated |
 | HunyuanVideo (`txt_in_individual_token_refiner`) | no ungated sample found |
-| LyCORIS GLoRA (`a1.weight`, `b1.weight`) | not read from the source yet |
-| LyCORIS full / diff, (IA)^3 | same |
 
 ## Read from the implementation, not from a file (`derived`)
 
-No sample with a declared licence turned up for these, so the key names were
-taken from LyCORIS itself rather than guessed.
+No LyCORIS sample with a declared licence turned up on the Hub, so the key names
+were read out of LyCORIS itself rather than guessed. Module paths below are
+relative to `lycoris/modules/`.
 
-**LoHa** — `lycoris/modules/loha.py`, `custom_state_dict()` emits `alpha`,
-`dora_scale`, `hada_w1_a`, `hada_w1_b`, `hada_w2_a`, `hada_w2_b`, `hada_t1`,
-`hada_t2`. `hada_w1_b` is `(rank, in_dim)` in both plain and Tucker mode, so the
-rank is read from its first axis; `hada_w1_a` flips between `(out, rank)` and
-`(rank, out)` depending on mode and is not safe to read a rank from. The presence
-of `hada_t1` / `hada_t2` means Tucker decomposition.
+**LoHa** (`loha.py`) — `custom_state_dict()` emits `alpha`, `dora_scale`,
+`hada_w1_a`, `hada_w1_b`, `hada_w2_a`, `hada_w2_b`, `hada_t1`, `hada_t2`.
+`hada_w1_b` is `(rank, in_dim)` in both plain and Tucker mode, so the rank is read
+from its first axis; `hada_w1_a` flips between `(out, rank)` and `(rank, out)`
+depending on mode and is not safe to read a rank from. `hada_t1` / `hada_t2`
+present means Tucker decomposition.
 
-**OFT** — `lycoris/modules/diag_oft.py` registers `oft_blocks`
-`(block_num, block_size, block_size)`, an optional `rescale`, and an `alpha`
-buffer. An earlier version of this project's rule looked for an `oft_diag` key,
-which does not exist anywhere in LyCORIS. BOFT is a separate module and its keys
-have not been read.
+**GLoRA** (`glora.py`) — `a1`, `a2`, `b1`, `b2` are `nn.Module`s, so their weights
+serialise as `a1.weight` and so on; `bm.weight` appears under Tucker. `a1.weight`
+is `(rank, in_dim)`, which is where the rank comes from. Plus an `alpha` buffer.
+
+**OFT and BOFT** (`diag_oft.py`, `boft.py`) — both register `oft_blocks`, an
+optional `rescale`, and an `alpha` buffer, and nothing else. They differ only in
+tensor rank:
+
+| Variant | `oft_blocks` shape |
+| --- | --- |
+| DiagOFT | `(block_num, block_size, block_size)` — 3 dims |
+| BOFT | `(m, block_num, block_size, block_size)` — 4 dims |
+
+**(IA)^3** (`ia3.py`) — exactly two entries: a parameter literally named `weight`
+and a buffer named `on_input`. Since a bare `.weight` matches nearly everything,
+`on_input` is the only usable marker.
+
+**full / diff** (`full.py`) — `custom_state_dict()` writes `diff`, and `diff_b`
+when the target module had a bias. It stores the delta from the original weight,
+not the weight, which is why these files are large.
+
+**DyLoRA** (`dylora.py`) — serialises to `alpha`, `lora_up.weight` and
+`lora_down.weight`: **the same key names as a plain LoRA.** It keeps blocks
+separately in memory and concatenates them on save. There is therefore no way to
+tell a DyLoRA from an ordinary LoRA by its keys, and this project does not try.
+The same goes for LyCORIS LoCon.
 
 **SD2.x cross-attention width 1024** — 768 and 2048 are both measured and the
 mechanism (the text encoder's output width) is identical, so 1024 for OpenCLIP-H
-follows without needing a file.
-
-**Textual Inversion for SD2.x** — same reasoning, applied to `emb_params`.
+follows without needing a file. The same reasoning covers Textual Inversion for
+SD2.x.
 
 If you have any of these as safetensors, run `tools/probe_header.py` on the file
 and open an issue or a PR with the key structure. Promoting a rule from

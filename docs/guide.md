@@ -201,6 +201,10 @@ gather the matching parts:
 | Wan 2.x | the matching text encoder + 3D VAE |
 | HunyuanVideo | the LLaVA-Llama3 text encoder + CLIP-L + the HunyuanVideo 3D VAE |
 | Anima | a Qwen3-0.6B class text encoder + the matching VAE |
+| Chroma | the same parts as FLUX.1 — T5-XXL + CLIP-L + the Flux VAE |
+| HiDream-I1 | CLIP-L + CLIP-G + T5-XXL + a Llama text encoder |
+| Mochi 1 | T5-XXL + the Mochi VAE |
+| Z-Image | its own text encoder + VAE, published alongside it |
 
 To find out what you already have, scan the whole folder:
 

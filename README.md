@@ -114,7 +114,7 @@ Every finding comes with its evidence, and every rule carries how well it is
 backed: nothing for one checked against a real file, `[derived, not directly
 measured]` for one taken from the implementation that writes the format, and
 `[unverified / inferred]` for a guess. As of now there are no guesses left —
-30 rules measured, 6 derived — but new architectures will outrun that.
+34 rules measured, 6 derived — but new architectures will outrun that.
 
 ## What it cannot tell you
 
@@ -174,7 +174,7 @@ python tools/probe_header.py path/to/file.safetensors
 ## Verification
 
 Rules are checked against real files, not from memory. `tools/verify_rules.py`
-fetches only the headers of 29 public models over HTTP Range — no weights
+fetches only the headers of 34 public models over HTTP Range — no weights
 are downloaded and nothing is redistributed — and asserts the expected
 classification for each:
 
@@ -186,7 +186,7 @@ The models used, the fingerprints they established, and what remains unverified
 are all written up in [docs/key-reference.md](docs/key-reference.md).
 
 Five of those live in gated repositories (FLUX.1, SD3.5). Running the tool
-without an account skips them and the other 24 still pass. To include them,
+without an account skips them and the other 29 still pass. To include them,
 accept the licences on Hugging Face yourself and set `HF_TOKEN`.
 
 ## Reading the output

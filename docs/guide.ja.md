@@ -184,6 +184,10 @@ A1111 / Forge なら `models/Stable-diffusion`。
 | SD3 / SD3.5 | CLIP-L ＋ CLIP-G ＋ T5-XXL、VAE が同梱でなければ VAE も |
 | Wan 2.x | 対応する Text Encoder ＋ 3D VAE |
 | HunyuanVideo | LLaVA-Llama3 系 Text Encoder ＋ CLIP-L ＋ HunyuanVideo の 3D VAE |
+| Chroma | FLUX.1 と同じ構成（T5-XXL ＋ CLIP-L ＋ Flux VAE） |
+| HiDream-I1 | CLIP-L ＋ CLIP-G ＋ T5-XXL ＋ Llama 系 Text Encoder |
+| Mochi 1 | T5-XXL ＋ Mochi の VAE |
+| Z-Image | 同梱配布の専用 Text Encoder ＋ VAE |
 
 手持ちに何があるかは、同じツールで `models` フォルダごと走査すれば分かる。
 

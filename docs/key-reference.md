@@ -64,6 +64,11 @@ All of these are ungated, so the run needs no account and no token.
 | `kohya-ss/controlnet-lllite` | `controllllite_v01032064e_sdxl_canny.safetensors` | Apache-2.0 |
 | `Comfy-Org/HunyuanVideo_repackaged` | `split_files/diffusion_models/hunyuan_video_t2v_720p_bf16.safetensors` | Tencent Hunyuan Community |
 | `Comfy-Org/HunyuanVideo_repackaged` | `split_files/vae/hunyuan_video_vae_bf16.safetensors` | Tencent Hunyuan Community |
+| `Wan-AI/Wan2.2-TI2V-5B` | `diffusion_pytorch_model-00001-of-00003.safetensors` | Apache-2.0 |
+| `lodestones/Chroma` | `chroma-unlocked-v16.safetensors` | Apache-2.0 |
+| `HiDream-ai/HiDream-I1-Full` | `transformer/diffusion_pytorch_model-00001-of-00007.safetensors` | MIT |
+| `genmo/mochi-1-preview` | `dit.safetensors` | Apache-2.0 |
+| `Tongyi-MAI/Z-Image-Turbo` | `transformer/diffusion_pytorch_model-00001-of-00003.safetensors` | Apache-2.0 |
 
 The HunyuanVideo files are a ComfyUI repackage that declares the upstream Tencent
 licence and links to it. That licence carries a territorial restriction (it does
@@ -74,9 +79,9 @@ encourages publishing what you find.
 Repositories with no declared licence were skipped, even where they held exactly
 the layout that was wanted.
 
-These three are gated. They were checked with an account that had accepted their
+These five are gated. They were checked with an account that had accepted their
 licences; without one, `tools/verify_rules.py` reports them as unreachable and the
-other 24 still run.
+other 29 still run.
 
 | Repository | File | License |
 | --- | --- | --- |
@@ -133,7 +138,9 @@ the prefix has to be checked too.
 | `lora_unet_` / `lora_te*_` | `.lora_down.weight`, `.lora_up.weight`, `.alpha` | kohya / sd-scripts, and most distributed LoRAs |
 | `unet.` / `te*.` | same as above | OneTrainer's internal backup format |
 | `diffusion_model.` | `.lora_A.weight`, `.lora_B.weight` | ai-toolkit, diffusers, PEFT |
-| none | `.hada_w1_a`, `.lokr_w1`, ... | LyCORIS variants (unverified) |
+| `lora_unet_` / `lora_te*_` | `.lokr_w1`, `.lokr_w2`, `.alpha` | LyCORIS LoKr (measured) |
+| `lllite_unet_` | `.conditioning1.N`, `.down.N`, `.mid.N`, `.up.N` | kohya ControlNet-LLLite (measured) |
+| any | `.hada_w*`, `.oft_blocks`, `.on_input`, `.diff` | other LyCORIS variants (derived from the LyCORIS source) |
 
 The kohya and OneTrainer-internal layouts share the same suffixes. Classifying by
 suffix alone mislabels one as the other — this was an actual bug found during
@@ -300,6 +307,26 @@ but no text encoders — those are published separately because they are large a
 shared. That combination gets its own file kind, `backbone_vae`, so the tool does
 not tell you a VAE is missing when it is right there.
 
+### Newer DiTs
+
+Each of these is distinctive enough that one key settles it.
+
+| Architecture | Decisive key | What it is |
+| --- | --- | --- |
+| Chroma | `distilled_guidance_layer.*` | retrained from FLUX.1 schnell; keeps `double_blocks` / `single_blocks` / `img_in` / `txt_in` but replaces the guidance embedding entirely. The FLUX rule vetoes on this key |
+| HiDream-I1 | `double_stream_blocks.N.block.ff_i.experts.N` | mixture-of-experts feed-forward; every attention projection is duplicated with a `_t` suffix for the text stream |
+| Mochi 1 | `blocks.N.attn.qkv_x` / `qkv_y`, `t5_y_embedder` | two parallel streams named `_x` (image) and `_y` (text) throughout |
+| Z-Image | `noise_refiner.N`, `context_refiner.N`, `cap_embedder` | separate refiner stacks feeding a shared `layers.N` stack |
+
+**Wan 2.2 needs no new rule.** The TI2V-5B release has the same structure as
+Wan 2.1 — `blocks.N.cross_attn.norm_q/norm_k`, single-letter q/k/v/o
+projections, `patch_embedding`, `time_projection` — and the existing rule
+identifies it unchanged.
+
+Z-Image is the reason `layers` was added to the backbone-block component rule.
+That is safe because a text encoder's layers normalise to `model_layers_N`: the
+bare `model.` prefix is not stripped, so `^layers_\d+` cannot reach them.
+
 ### Textual Inversion
 
 An embedding is a slab of the text encoder's output width, so the tensor shape
@@ -360,7 +387,7 @@ Patterns must end with `$` or a real separator — never a bare trailing `_`.
 ## Nothing left unverified
 
 Every rule is now either `measured` against a real file or `derived` from a
-primary source. The tally today is 30 measured, 6 derived, 0 unverified.
+primary source. The tally today is 34 measured, 6 derived, 0 unverified.
 
 That will not stay true — new architectures arrive faster than they can be
 checked. When you add a rule without a file to test it against, tag it

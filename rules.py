@@ -291,7 +291,11 @@ COMPONENT_RULES = [
     {
         "id": "dit_blocks",
         "name": T("DiT / transformer backbone blocks", "DiT / Transformer 本体ブロック"),
-        "patterns": [r"^(transformer_blocks|blocks|double_blocks|single_blocks|joint_blocks)_\d+"],
+        # "layers" is safe here because a text encoder's layers arrive as
+        # model_layers_N - the "model." prefix is not stripped for those.
+        "patterns": [r"^(transformer_blocks|blocks|double_blocks|single_blocks"
+                     r"|joint_blocks|double_stream_blocks|single_stream_blocks"
+                     r"|layers|noise_refiner|context_refiner)_\d+"],
         "verified": "measured",
     },
     {
@@ -462,7 +466,8 @@ ARCHITECTURES = [
         "hidden": [(r"^context_embedder$", 1, 4096)],
         "veto": [r"^txt_in_individual_token_refiner_",
                  r"^transformer_blocks_\d+_(txt|img)_mod_",
-                 r"^transformer_blocks_\d+_(txt|img)_mlp_"],
+                 r"^transformer_blocks_\d+_(txt|img)_mlp_",
+                 r"^distilled_guidance_layer_"],
         "note": T("dev and schnell share the same structure. In the single-file layout "
                   "guidance_in is the only hint (dev has it); in the diffusers layout it is "
                   "time_text_embed.guidance_embedder.",
@@ -569,6 +574,95 @@ ARCHITECTURES = [
                   "stripped before matching.",
                   "ComfyUI 再配布版は重みを model.model. の下に二重に入れているが、"
                   "照合前に取り除いている"),
+        "comfy_dir": "diffusion_models",
+    },
+
+    {
+        # Retrained from FLUX.1 schnell, so double_blocks / single_blocks /
+        # img_in / txt_in are all inherited. What is new is the distilled
+        # guidance stack, which replaces Flux's guidance embedding entirely.
+        # The Flux rule vetoes on it.
+        "id": "chroma",
+        "name": T("Chroma (FLUX.1 schnell derivative)", "Chroma (FLUX.1 schnell 派生)"),
+        "verified": "measured",
+        "signals": [
+            (r"^distilled_guidance_layer_", 5,
+             T("the distilled guidance stack that replaces Flux's guidance embedding",
+               "Flux の guidance 埋め込みを置き換えた distilled guidance 層")),
+            (r"^(double_blocks|single_blocks)_\d+", 2,
+             T("the Flux two-stage block layout it inherits",
+               "Flux から受け継いだ二段ブロック構成")),
+        ],
+        "context_dims": [],
+        "veto": [],
+        "note": T("Uses the same text encoders and VAE as FLUX.1, but the loader has to "
+                  "know about the distilled guidance stack.",
+                  "text encoder と VAE は FLUX.1 と同じものを使うが、"
+                  "distilled guidance 層に対応したローダーが要る"),
+        "comfy_dir": "diffusion_models",
+    },
+    {
+        # Mixture-of-experts feed-forward, and a "_t" suffix marking the text
+        # side of every attention projection.
+        "id": "hidream",
+        "name": T("HiDream-I1", "HiDream-I1"),
+        "verified": "measured",
+        "signals": [
+            (r"^double_stream_blocks_\d+_block_ff_i_experts_\d+", 5,
+             T("a mixture-of-experts feed-forward", "mixture-of-experts 型 feed-forward")),
+            (r"^double_stream_blocks_\d+_block_attn1_to_[kqv]_t$", 3,
+             T("attention projections duplicated for the text stream (_t suffix)",
+               "text 側の attention 射影が _t 付きで別に存在する")),
+            (r"^p_embedder_pooled_embedder_", 2,
+             T("HiDream's pooled-embedding stage", "HiDream の pooled embedding 段")),
+        ],
+        "context_dims": [],
+        "veto": [],
+        "note": T("Needs CLIP-L, CLIP-G, T5-XXL and a Llama text encoder together.",
+                  "CLIP-L / CLIP-G / T5-XXL / Llama 系 text encoder を揃える必要がある"),
+        "comfy_dir": "diffusion_models",
+    },
+    {
+        # Two parallel streams named _x (image) and _y (text) all the way down.
+        "id": "mochi",
+        "name": T("Mochi 1 (video)", "Mochi 1 (動画生成)"),
+        "verified": "measured",
+        "signals": [
+            (r"^blocks_\d+_attn_qkv_[xy]$", 4,
+             T("separate qkv projections for the image and text streams (_x / _y)",
+               "画像側 _x と text 側 _y で qkv 射影が分かれている")),
+            (r"^t5_y_embedder_", 4,
+             T("the T5 cross-attention embedder unique to Mochi",
+               "Mochi 特有の T5 cross-attention embedder")),
+            (r"^blocks_\d+_mod_[xy]$", 2,
+             T("per-stream modulation", "系統別の変調")),
+            (r"^pos_frequencies$", 2,
+             T("Mochi's positional frequency table", "Mochi の位置周波数テーブル")),
+        ],
+        "context_dims": [],
+        "veto": [],
+        "note": T("Conditioned on T5-XXL.", "T5-XXL で条件付けする"),
+        "comfy_dir": "diffusion_models",
+    },
+    {
+        # Separate refiner stacks feeding a shared layer stack.
+        "id": "z_image",
+        "name": T("Z-Image", "Z-Image"),
+        "verified": "measured",
+        "signals": [
+            (r"^(noise_refiner|context_refiner)_\d+", 5,
+             T("separate refiner stacks for the noise and context sides",
+               "noise 側と context 側に分かれた refiner")),
+            (r"^cap_(embedder|pad_token)", 3,
+             T("a caption embedder with its own pad token",
+               "専用の pad token を持つ caption embedder")),
+            (r"^all_(x_embedder|final_layer)_", 2,
+             T("Z-Image's multi-resolution embedder and head",
+               "Z-Image の多解像度 embedder と出力層")),
+        ],
+        "context_dims": [],
+        "veto": [],
+        "note": T("", ""),
         "comfy_dir": "diffusion_models",
     },
 

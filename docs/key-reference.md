@@ -73,11 +73,16 @@ All of these are ungated, so the run needs no account and no token.
 | `Lightricks/LTX-Video` | `ltxv-13b-0.9.7-distilled-lora128.safetensors` | LTXV Open Weights |
 | `THUDM/CogVideoX-5b` | `transformer/diffusion_pytorch_model-00001-of-00002.safetensors` | CogVideoX License |
 | `THUDM/CogVideoX-5b` | `vae/diffusion_pytorch_model.safetensors` | CogVideoX License |
+| `Efficient-Large-Model/Sana_1600M_1024px_diffusers` | `transformer/diffusion_pytorch_model.safetensors` | Apache-2.0 |
+| `PixArt-alpha/PixArt-Sigma-XL-2-1024-MS` | `transformer/diffusion_pytorch_model.safetensors` | OpenRAIL++ |
+| `fal/AuraFlow-v0.3` | `aura_flow_0.3.safetensors` | Apache-2.0 |
+| `Alpha-VLLM/Lumina-Image-2.0` | `transformer/diffusion_pytorch_model-00001-of-00002.safetensors` | Apache-2.0 |
+| `Kwai-Kolors/Kolors` | `unet/diffusion_pytorch_model.fp16.safetensors` | Apache-2.0 |
 
-Both of those last two licences were read before use. Neither restricts
-inspection or publishing what you find. The CogVideoX licence does carry
-use-based restrictions and requires registration for commercial use — relevant
-to running the model, not to reading its header.
+The LTX-Video and CogVideoX entries declare "other" rather than a named licence,
+so both were read before use. Neither restricts inspection or publishing what you
+find. CogVideoX does carry use-based restrictions and requires registration for
+commercial use — relevant to running the model, not to reading its header.
 
 The HunyuanVideo files are a ComfyUI repackage that declares the upstream Tencent
 licence and links to it. That licence carries a territorial restriction (it does
@@ -90,7 +95,7 @@ the layout that was wanted.
 
 These five are gated. They were checked with an account that had accepted their
 licences; without one, `tools/verify_rules.py` reports them as unreachable and the
-other 33 still run.
+other 38 still run.
 
 | Repository | File | License |
 | --- | --- | --- |
@@ -337,6 +342,48 @@ Each of these is distinctive enough that one key settles it.
 | Z-Image | `noise_refiner.N`, `context_refiner.N`, `cap_embedder` | separate refiner stacks feeding a shared `layers.N` stack |
 | LTX-Video | `patchify_proj`, `scale_shift_table` per block | one shared `adaln_single` stage instead of per-block linear modulation. Cross-attention is 4096 wide (T5-XXL) |
 | CogVideoX | `patch_embed.text_proj` | the text stream is folded into the patch embedder; a single `attn1` stack, no `attn2` |
+| AuraFlow | `double_layers.N.attn.w1q` … `w2o`, `register_tokens` | projections named `w1q`/`w2k` rather than `to_q`/`to_k`. The single-file release bundles the VAE and the T5 encoder too |
+| SANA | `caption_norm` | otherwise the PixArt stage; cross-attention 2240 |
+| PixArt-alpha / Sigma | `adaln_single` + `pos_embed.proj`, no `caption_norm` | cross-attention 1152 |
+| Lumina-Image 2.0 | `time_caption_embed.caption_embedder` | otherwise the same refiner layout as Z-Image |
+
+### Three families that overlap on `adaln_single`
+
+PixArt, SANA and LTX-Video all carry `adaln_single` and `caption_projection`.
+They differ in how the image is patchified and whether the caption is normalised:
+
+| | patchify | `caption_norm` |
+| --- | --- | --- |
+| PixArt | `pos_embed.proj` | no |
+| SANA | `pos_embed.proj` | yes |
+| LTX-Video | `patchify_proj` | no |
+
+Each rule vetoes on the others' markers.
+
+### Z-Image and Lumina-Image 2.0
+
+Nearly the same file. Both have `layers.N`, `noise_refiner.N` and
+`context_refiner.N` with matching submodule names. The caption stage is the
+difference:
+
+| | caption stage | embedder / head |
+| --- | --- | --- |
+| Z-Image | `cap_embedder`, `cap_pad_token` | `all_x_embedder`, `all_final_layer` |
+| Lumina 2.0 | `time_caption_embed.caption_embedder` | `x_embedder` |
+
+The Z-Image rule was written first and matched Lumina on the refiner stacks
+alone. They veto each other now.
+
+### Kolors is not separable from SDXL
+
+Kolors reuses the SDXL UNet wholesale and projects its ChatGLM text encoder down
+to the same 2048-wide cross-attention, so its UNet matches the SDXL rule on every
+count — `add_embedding`, block layout, cross-attention width. There is no key
+that distinguishes them.
+
+This matters in practice: the tool will say SDXL, and a Kolors UNet will not work
+with a CLIP text encoder. The SDXL rule's caveat says so. This is recorded as an
+expected result in the verification run rather than papered over.
 
 LTX-Video's single-file releases bundle the VAE under a bare `vae.` prefix, so
 they classify as backbone + VAE. That prefix is now stripped along with the
@@ -411,7 +458,7 @@ Patterns must end with `$` or a real separator — never a bare trailing `_`.
 ## Nothing left unverified
 
 Every rule is now either `measured` against a real file or `derived` from a
-primary source. The tally today is 36 measured, 6 derived, 0 unverified, checked against 38 published files.
+primary source. The tally today is 41 measured, 6 derived, 0 unverified, checked against 43 published files.
 
 That will not stay true — new architectures arrive faster than they can be
 checked. When you add a rule without a file to test it against, tag it

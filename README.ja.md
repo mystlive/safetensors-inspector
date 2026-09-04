@@ -97,7 +97,7 @@ python stinspect.py path/to/models -r --lang ja --csv inventory.csv
 - **トリガーワード** — 学習時のタグ頻度が記録されていれば
 - **破損** — ダウンロード未完了やヘッダ破損を、サイズの照合で検出
 
-判定にはすべて根拠が付き、ルールごとに裏付けの強さも表示される。実ファイルで確認したものは無印、フォーマットを書き出す実装のソースから取ったものは `[導出・実測ではない]`、推測のものは `[未検証・推定]`。現時点で推測はゼロ（実測 36 / 導出 6）だが、新しいアーキテクチャの登場には追いつかなくなる。
+判定にはすべて根拠が付き、ルールごとに裏付けの強さも表示される。実ファイルで確認したものは無印、フォーマットを書き出す実装のソースから取ったものは `[導出・実測ではない]`、推測のものは `[未検証・推定]`。現時点で推測はゼロ（実測 41 / 導出 6）だが、新しいアーキテクチャの登場には追いつかなくなる。
 
 ## 判別できないこと
 
@@ -109,6 +109,7 @@ python stinspect.py path/to/models -r --lang ja --csv inventory.csv
 | Qwen-Image / Qwen-Image-Edit | DiT 構造が同一 |
 | Wan 2.x の VAE / Qwen-Image の VAE | 同系の 3D VAE |
 | SD1.x 用 VAE / SDXL 用 VAE | 構造が同一 |
+| SDXL / Kolors | Kolors は SDXL の UNet を同じ cross-attention 次元で流用している。ただし CLIP ではなく ChatGLM が要る |
 | FLUX.1 dev / schnell | `guidance_in` の有無が唯一の手がかり |
 
 メタデータ（`ss_base_model_version`、`modelspec.architecture`）が残っていればそれを使い、使ったことも表示する。残っていない場合は、ファイル名か配布元を当たるしかない。
@@ -150,7 +151,7 @@ python tools/probe_header.py path/to/file.safetensors
 
 ## 検証
 
-ルールは記憶からでなく実ファイルで検証している。`tools/verify_rules.py` は公開モデル 38 件のヘッダだけを HTTP Range で取得し（重みはダウンロードせず、再配布もしない）、期待する判定結果と照合する。
+ルールは記憶からでなく実ファイルで検証している。`tools/verify_rules.py` は公開モデル 43 件のヘッダだけを HTTP Range で取得し（重みはダウンロードせず、再配布もしない）、期待する判定結果と照合する。
 
 ```bash
 python tools/verify_rules.py
@@ -158,7 +159,7 @@ python tools/verify_rules.py
 
 使用したモデル、そこから確定した指紋、未検証のまま残っている項目は [docs/key-reference.md](docs/key-reference.md) にまとめてある。
 
-うち 5 件は gated リポジトリ（FLUX.1、SD3.5）。アカウントなしで実行するとその 5 件は飛ばされ、残り 33 件は通る。含めるには Hugging Face で自分でライセンスに同意し、`HF_TOKEN` を設定する。
+うち 5 件は gated リポジトリ（FLUX.1、SD3.5）。アカウントなしで実行するとその 5 件は飛ばされ、残り 38 件は通る。含めるには Hugging Face で自分でライセンスに同意し、`HF_TOKEN` を設定する。
 
 ## 出力の読み方
 

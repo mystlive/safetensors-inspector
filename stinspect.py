@@ -243,7 +243,8 @@ def detect_components(modules: dict, prefix_components: Counter):
     if prefix_components.get("text_encoder") and not any(
         f["id"].startswith("text_encoder") for f in found
     ):
-        found.append({"id": "text_encoder_clip", "name": by_id["text_encoder_clip"]["name"],
+        found.append({"id": "text_encoder_generic",
+                      "name": by_id["text_encoder_generic"]["name"],
                       "hits": prefix_components["text_encoder"], "verified": "measured"})
     found.sort(key=lambda x: -x["hits"])
     return found
@@ -395,7 +396,7 @@ def classify_file_kind(dialect, components, modules):
     if "controlnet" in ids:
         return "controlnet"
     has_backbone = bool(ids & {"unet_ldm", "unet_diffusers", "dit_blocks"})
-    has_te = bool(ids & {"text_encoder_clip", "text_encoder_llm"})
+    has_te = bool(ids & {"text_encoder_clip", "text_encoder_llm", "text_encoder_generic"})
     has_vae = bool(ids & {"vae_sd", "vae_3d"})
     if has_backbone and has_te and has_vae:
         return "checkpoint"

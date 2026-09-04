@@ -190,6 +190,9 @@ A1111 / Forge なら `models/Stable-diffusion`。
 | Z-Image | 同梱配布の専用 Text Encoder ＋ VAE |
 | LTX-Video | T5-XXL。単一ファイル版は VAE を同梱済み |
 | CogVideoX | T5-XXL ＋ CogVideoX の 3D VAE |
+| PixArt / SANA | PixArt は T5、SANA は Gemma 系 |
+| AuraFlow | T5。単一ファイル版は全部入り |
+| Lumina-Image 2.0 | 専用の Gemma 系 Encoder ＋ VAE |
 
 手持ちに何があるかは、同じツールで `models` フォルダごと走査すれば分かる。
 

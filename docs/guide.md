@@ -207,6 +207,9 @@ gather the matching parts:
 | Z-Image | its own text encoder + VAE, published alongside it |
 | LTX-Video | T5-XXL; the single-file releases already contain the VAE |
 | CogVideoX | T5-XXL + the CogVideoX 3D VAE |
+| PixArt / SANA | T5 for PixArt, a Gemma encoder for SANA |
+| AuraFlow | T5; the single-file release already contains everything |
+| Lumina-Image 2.0 | its own Gemma-class encoder + VAE |
 
 To find out what you already have, scan the whole folder:
 

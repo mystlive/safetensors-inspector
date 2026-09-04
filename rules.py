@@ -63,6 +63,8 @@ STRIP_PREFIXES = [
     ("first_stage_model.", "vae"),
     # LTX-Video ships the VAE inside the same file under a bare "vae." prefix
     ("vae.", "vae"),
+    # AuraFlow's single-file release bundles the text encoder too
+    ("text_encoders.", "text_encoder"),
     ("te1.", "text_encoder_1"),
     ("te2.", "text_encoder_2"),
     ("te.", "text_encoder"),
@@ -297,7 +299,10 @@ COMPONENT_RULES = [
         # model_layers_N - the "model." prefix is not stripped for those.
         "patterns": [r"^(transformer_blocks|blocks|double_blocks|single_blocks"
                      r"|joint_blocks|double_stream_blocks|single_stream_blocks"
-                     r"|layers|noise_refiner|context_refiner)_\d+"],
+                     r"|layers|noise_refiner|context_refiner)_\d+",
+                     # AuraFlow keeps its stacks under a "model." prefix that is
+                     # deliberately not stripped
+                     r"^model_(double|single)_layers_\d+"],
         "verified": "measured",
     },
     {
@@ -330,6 +335,14 @@ COMPONENT_RULES = [
         "id": "vae_3d",
         "name": T("VAE (video / 3D)", "VAE (動画 / 3D 系)"),
         "patterns": [r"^(encoder_downsamples|decoder_upsamples)_\d+"],
+        "verified": "measured",
+    },
+    {
+        # Used when only the key prefix says a text encoder is present, with no
+        # further clue as to which family it belongs to.
+        "id": "text_encoder_generic",
+        "name": T("Text encoder", "Text Encoder"),
+        "patterns": [],
         "verified": "measured",
     },
     {
@@ -411,9 +424,15 @@ ARCHITECTURES = [
         "veto": [],
         "note": T("Derivatives such as Illustrious, Pony, NoobAI and Animagine are structurally "
                   "identical to SDXL 1.0, so they cannot be told apart from the weights' shape. "
-                  "Distinguishing them needs metadata or the filename.",
+                  "Kolors also lands here: it reuses the SDXL UNet and projects its ChatGLM text "
+                  "encoder down to the same 2048 width, so its UNet is indistinguishable - but it "
+                  "needs that ChatGLM encoder, not CLIP. Distinguishing any of these needs "
+                  "metadata or the filename.",
                   "Illustrious / Pony / NoobAI / Animagine などの派生は重みの構造が SDXL 1.0 と"
-                  "完全に同一のため、構造だけでは区別できない。区別にはメタデータかファイル名が要る"),
+                  "完全に同一のため、構造だけでは区別できない。Kolors もここに含まれる"
+                  "（SDXL の UNet を流用し、ChatGLM text encoder の出力を同じ 2048 次元に"
+                  "射影しているため UNet が区別できない。ただし CLIP ではなく ChatGLM が要る）。"
+                  "区別にはメタデータかファイル名が要る"),
         "comfy_dir": "checkpoints",
     },
     {
@@ -663,7 +682,9 @@ ARCHITECTURES = [
                "ブロックごとの scale/shift テーブル")),
         ],
         "context_dims": [],
-        "veto": [],
+        # PixArt and SANA share the adaln_single / caption_projection stage but
+        # patchify the image with pos_embed.proj instead of patchify_proj.
+        "veto": [r"^pos_embed_proj$", r"^caption_norm$"],
         "note": T("Conditioned on T5-XXL. The single-file releases bundle the VAE.",
                   "T5-XXL で条件付けする。単一ファイル版は VAE を同梱している"),
         "comfy_dir": "checkpoints",
@@ -690,25 +711,109 @@ ARCHITECTURES = [
         "comfy_dir": "diffusion_models",
     },
     {
-        # Separate refiner stacks feeding a shared layer stack.
+        # Z-Image and Lumina-Image 2.0 share the refiner-stack layout almost
+        # exactly. What differs is the caption side: Z-Image has cap_embedder
+        # and cap_pad_token with all_-prefixed embedder and head, Lumina has a
+        # combined time_caption_embed. They veto each other on those.
         "id": "z_image",
         "name": T("Z-Image", "Z-Image"),
         "verified": "measured",
         "signals": [
-            (r"^(noise_refiner|context_refiner)_\d+", 5,
+            (r"^(noise_refiner|context_refiner)_\d+", 4,
              T("separate refiner stacks for the noise and context sides",
                "noise 側と context 側に分かれた refiner")),
-            (r"^cap_(embedder|pad_token)", 3,
+            (r"^cap_(embedder|pad_token)", 4,
              T("a caption embedder with its own pad token",
                "専用の pad token を持つ caption embedder")),
-            (r"^all_(x_embedder|final_layer)_", 2,
-             T("Z-Image's multi-resolution embedder and head",
-               "Z-Image の多解像度 embedder と出力層")),
+            (r"^all_(x_embedder|final_layer)_", 3,
+             T("multi-resolution embedder and head", "多解像度 embedder と出力層")),
+        ],
+        "context_dims": [],
+        "veto": [r"^time_caption_embed_"],
+        "note": T("", ""),
+        "comfy_dir": "diffusion_models",
+    },
+    {
+        "id": "lumina2",
+        "name": T("Lumina-Image 2.0", "Lumina-Image 2.0"),
+        "verified": "measured",
+        "signals": [
+            (r"^time_caption_embed_(caption_embedder|timestep_embedder)_", 5,
+             T("a combined timestep-and-caption embedder",
+               "timestep と caption をまとめた embedder")),
+            (r"^(noise_refiner|context_refiner)_\d+", 4,
+             T("separate refiner stacks for the noise and context sides",
+               "noise 側と context 側に分かれた refiner")),
+        ],
+        "context_dims": [],
+        "veto": [r"^cap_(embedder|pad_token)", r"^all_x_embedder_"],
+        "note": T("Z-Image uses nearly the same layout; the caption stage is what separates them.",
+                  "Z-Image がほぼ同じ構成を使う。caption 段の作りが違いになる"),
+        "comfy_dir": "diffusion_models",
+    },
+    {
+        "id": "sana",
+        "name": T("SANA", "SANA"),
+        "verified": "measured",
+        "signals": [
+            (r"^caption_norm$", 5,
+             T("a normalisation on the caption embedding, which PixArt lacks",
+               "PixArt にはない caption 埋め込みの正規化")),
+            (r"^(adaln_single|caption_projection)_", 2,
+             T("the shared adaLN and caption projection stage it inherits from PixArt",
+               "PixArt 譲りの共有 adaLN と caption 射影")),
+            (r"^pos_embed_proj$", 2,
+             T("patch embedding via pos_embed.proj", "pos_embed.proj による patch 埋め込み")),
+        ],
+        "context_dims": [],
+        "veto": [r"^patchify_proj$"],
+        "note": T("Conditioned on a Gemma text encoder rather than T5 or CLIP.",
+                  "T5 や CLIP ではなく Gemma 系 text encoder で条件付けする"),
+        "comfy_dir": "diffusion_models",
+    },
+    {
+        "id": "pixart",
+        "name": T("PixArt-alpha / PixArt-Sigma", "PixArt-alpha / PixArt-Sigma"),
+        "verified": "measured",
+        "signals": [
+            (r"^(adaln_single|caption_projection)_", 4,
+             T("a single shared adaLN stage and a caption projection",
+               "共有の adaLN 段と caption 射影")),
+            (r"^pos_embed_proj$", 3,
+             T("patch embedding via pos_embed.proj", "pos_embed.proj による patch 埋め込み")),
+            (r"^scale_shift_table$", 2,
+             T("a top-level scale/shift table", "トップレベルの scale/shift テーブル")),
+        ],
+        "context_dims": [],
+        # SANA is built on the same stage but adds caption_norm; LTX-Video uses
+        # patchify_proj rather than pos_embed.
+        "veto": [r"^caption_norm$", r"^patchify_proj$"],
+        "note": T("Conditioned on T5. alpha and Sigma share this structure.",
+                  "T5 で条件付けする。alpha と Sigma は構造が同一"),
+        "comfy_dir": "diffusion_models",
+    },
+    {
+        "id": "auraflow",
+        "name": T("AuraFlow", "AuraFlow"),
+        "verified": "measured",
+        "signals": [
+            # The single-file release nests everything under "model.", which is
+            # not stripped - doing so would also strip a text encoder's
+            # model.layers and misclassify it. Matched here instead.
+            (r"^(model_)?(double|single)_layers_\d+_attn_w[12][qkvo]$", 5,
+             T("attention projections named w1q / w2k and so on",
+               "w1q / w2k のような命名の attention 射影")),
+            (r"^(model_)?(cond_seq_linear|init_x_linear|final_linear)$", 3,
+             T("AuraFlow's input and output linears",
+               "AuraFlow の入出力 linear")),
+            (r"^(model_)?register_tokens$", 3,
+             T("learned register tokens", "学習済みレジスタトークン")),
         ],
         "context_dims": [],
         "veto": [],
-        "note": T("", ""),
-        "comfy_dir": "diffusion_models",
+        "note": T("The single-file release bundles the VAE and the T5 text encoder as well.",
+                  "単一ファイル版は VAE と T5 text encoder も同梱している"),
+        "comfy_dir": "checkpoints",
     },
 
     # ---- VAE ------------------------------------------------------------

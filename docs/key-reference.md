@@ -52,6 +52,13 @@ All of these are ungated, so the run needs no account and no token.
 | `comfyanonymous/flux_text_encoders` | `t5xxl_fp16.safetensors` | Apache-2.0 |
 | `comfyanonymous/flux_text_encoders` | `t5xxl_fp8_e4m3fn_scaled.safetensors` | Apache-2.0 |
 | `comfyanonymous/flux_text_encoders` | `clip_l.safetensors` | Apache-2.0 |
+| `LyliaEngine/USNR_STYLE_XL_lokr` | `USNR STYLE_XL_lokr.safetensors` | CDLA-Permissive-2.0 |
+| `monster-labs/control_v1p_sd15_qrcode_monster` | `control_v1p_sd15_qrcode_monster.safetensors` | OpenRAIL++ |
+| `monster-labs/control_v1p_sd15_qrcode_monster` | `diffusion_pytorch_model.safetensors` | OpenRAIL++ |
+| `kohya-ss/controlnet-lllite` | `controllllite_v01032064e_sdxl_canny.safetensors` | Apache-2.0 |
+
+Repositories with no declared licence were skipped, even where they held exactly
+the layout that was wanted.
 
 Additional dialects (Anima, Qwen-Image LoRAs, OneTrainer output) were measured
 against locally trained and locally held files. Those are described below by
@@ -175,12 +182,41 @@ Both are handled.
 - `.scale_weight` and `.scale_input` (F32) beside each quantized weight
 - The weight itself in `F8_E4M3`
 
+### LyCORIS LoKr
+
+- Same prefixes as kohya LoRA (`lora_unet_`, `lora_te1_`), different suffixes:
+  `.lokr_w1`, `.lokr_w2`, and sometimes `.lokr_w2_a` / `.lokr_w2_b`, plus `.alpha`
+- `lokr_w1` is tiny (`[6, 6]`, `[5, 5]`), `lokr_w2` carries the bulk (`[512, 128]`)
+- There is no single rank: the factorisation splits differently per module, and
+  `ss_network_dim` in the metadata was `100000` — a placeholder, not a rank. The
+  tool therefore reports alpha but no rank for LoKr.
+- Suffix alone distinguishes it from plain LoRA, since `.lora_down.weight` is absent
+
 ### ControlNet
 
-- diffusers layout: `controlnet_cond_embedding.*`, `controlnet_down_blocks.N`,
-  `controlnet_mid_block` (measured)
-- LDM layout: `control_model.` prefix with `input_hint_block` and `zero_convs`
-  (unverified)
+Both layouts measured, on the same model published in both forms:
+
+| Layout | Fingerprint |
+| --- | --- |
+| LDM (A1111) | `input_blocks.N`, `middle_block`, `zero_convs.N`, `input_hint_block`, `middle_block_out`, no prefix |
+| diffusers | `controlnet_cond_embedding.*`, `controlnet_down_blocks.N`, `controlnet_mid_block`, `down_blocks.N` |
+
+Both also match the UNet component rules, since a ControlNet *is* a copy of the
+UNet's encoder half. The ControlNet-specific keys are what settle the type.
+
+### ControlNet-LLLite
+
+A third control format, unrelated to either ControlNet layout:
+
+- Prefix `lllite_unet_`, then the target module path
+  (`input_blocks_4_1_transformer_blocks_0_attn1_to_k`)
+- Suffixes `.conditioning1.N.weight`, `.down.N.weight`, `.mid.N.weight`, `.up.N.weight`
+- `modelspec.architecture` = `stable-diffusion-xl-v1-base/control-net-lllite`
+- It injects conditioning into the UNet's attention rather than running a parallel
+  encoder, so it needs a loader that supports it specifically — ordinary ControlNet
+  loaders will not take it
+- The conditioning width is usually encoded in the filename
+  (`v01032064e` → 32/64), not recoverable from the header
 
 ## A trap worth naming
 
@@ -196,15 +232,19 @@ Patterns must end with `$` or a real separator — never a bare trailing `_`.
 No file at hand, so these rules come from key naming in public implementations
 and are marked `unverified`:
 
-- FLUX.1 (`double_blocks`, `single_blocks`, `img_in`, `txt_in`) — the repository is gated
-- SD3 / SD3.5 (`joint_blocks`) — gated
-- HunyuanVideo (`txt_in_individual_token_refiner`)
-- LyCORIS variants: LoHa, LoKr, GLoRA, OFT/BOFT, (IA)^3
-- Textual Inversion (`string_to_param`, `emb_params`)
-- ControlNet in the LDM layout
-- SD2.x cross-attention width 1024 — marked `derived`, since 768 and 2048 are both
-  measured and the mechanism is the same
+| Rule | Why it is still unverified |
+| --- | --- |
+| FLUX.1 (`double_blocks`, `single_blocks`, `img_in`) | the repository is gated |
+| SD3 / SD3.5 (`joint_blocks`) | gated |
+| HunyuanVideo (`txt_in_individual_token_refiner`) | no ungated sample found |
+| LyCORIS LoHa (`hada_w1_a`) | no sample found with a declared licence |
+| LyCORIS GLoRA, OFT/BOFT, (IA)^3 | same |
+| Textual Inversion (`string_to_param`, `emb_params`) | TI is distributed as `.pt` / `.bin`; no safetensors sample found on the Hub |
 
-If you have any of these, run `tools/probe_header.py` on the file and open an
-issue or a PR with the key structure. Promoting a rule from `unverified` to
-`measured` is the most useful contribution this project can receive.
+SD2.x's 1024-wide cross-attention is marked `derived` rather than unverified: 768
+and 2048 are both measured and the mechanism is identical.
+
+If you have any of these as safetensors, run `tools/probe_header.py` on the file
+and open an issue or a PR with the key structure. Promoting a rule from
+`unverified` to `measured` is the most useful contribution this project can
+receive.

@@ -378,7 +378,9 @@ def detect_naming_mix(modules: dict):
 
 def classify_file_kind(dialect, components, modules):
     if dialect:
-        return "embedding" if dialect["id"] == "textual_inversion" else "lora"
+        # Most dialects are LoRA-shaped deltas, but some are not: an embedding
+        # or a control model declares its own kind.
+        return dialect.get("kind", "lora")
     ids = {c["id"] for c in components}
     if "controlnet" in ids:
         return "controlnet"

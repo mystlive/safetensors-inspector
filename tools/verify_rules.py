@@ -118,7 +118,29 @@ TARGETS = [
          license="Apache-2.0", gated=False,
          expect_kind="text_encoder", expect_arch="te_clip"),
 
-    # --- gated（本人がライセンス同意し HF_TOKEN を設定した場合のみ） ---
+    # --- adapters and control models ---
+    dict(id="lokr-sdxl", genre="LyCORIS LoKr (SDXL)",
+         repo="LyliaEngine/USNR_STYLE_XL_lokr",
+         file="USNR STYLE_XL_lokr.safetensors",
+         license="CDLA-Permissive-2.0", gated=False,
+         expect_kind="lora", expect_arch="sdxl"),
+    dict(id="cn-sd15-ldm", genre="ControlNet (SD1.5, LDM / A1111 layout)",
+         repo="monster-labs/control_v1p_sd15_qrcode_monster",
+         file="control_v1p_sd15_qrcode_monster.safetensors",
+         license="OpenRAIL++", gated=False,
+         expect_kind="controlnet", expect_arch="sd15"),
+    dict(id="cn-sd15-diffusers", genre="ControlNet (SD1.5, diffusers layout)",
+         repo="monster-labs/control_v1p_sd15_qrcode_monster",
+         file="diffusion_pytorch_model.safetensors",
+         license="OpenRAIL++", gated=False,
+         expect_kind="controlnet", expect_arch="sd15"),
+    dict(id="cn-lllite", genre="ControlNet-LLLite (SDXL)",
+         repo="kohya-ss/controlnet-lllite",
+         file="controllllite_v01032064e_sdxl_canny.safetensors",
+         license="Apache-2.0", gated=False,
+         expect_kind="controlnet", expect_arch="sdxl"),
+
+    # --- gated: only reachable if you accepted the licence and set HF_TOKEN ---
     dict(id="flux-schnell", genre="DiT (FLUX.1 schnell)",
          repo="black-forest-labs/FLUX.1-schnell",
          file="flux1-schnell.safetensors",
@@ -185,8 +207,6 @@ def main(argv):
 
         a = analyze_header(header)
         got_kind = a["kind"]
-        if a["dialect"]:
-            got_kind = "lora" if a["dialect"]["id"] != "textual_inversion" else "embedding"
         got_arch = a["strong"][0]["arch"]["id"] if a["strong"] else None
 
         kind_ok = (got_kind == t["expect_kind"])

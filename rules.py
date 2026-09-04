@@ -48,6 +48,7 @@ STRIP_PREFIXES = [
     ("lora_te2_", "text_encoder_2"),
     ("lora_te_", "text_encoder"),
     ("lycoris_unet_", "unet"),
+    ("lllite_unet_", "unet"),
     ("lora_transformer_", "unet"),
     ("model.diffusion_model.", "unet"),
     ("diffusion_model.", "unet"),
@@ -126,15 +127,46 @@ ADAPTER_DIALECTS = [
                   "LyCORIS 拡張が必要（ComfyUI は標準で読める）"),
     },
     {
+        # Measured. LoKr has no single "rank": each module carries a small
+        # lokr_w1 (e.g. [6, 6]) and a larger lokr_w2, sometimes split into
+        # lokr_w2_a / lokr_w2_b. Reporting a rank would be misleading, so
+        # down_pattern is left unset.
         "id": "lycoris_lokr",
         "name": T("LyCORIS LoKr (Kronecker product)", "LyCORIS LoKr (クロネッカー積)"),
         "prefix_pattern": None,
-        "patterns": [r"\.lokr_w1$", r"\.lokr_w1_a$", r"\.lokr_w2$", r"\.lokr_w2_a$"],
+        "patterns": [r"\.lokr_w1$", r"\.lokr_w1_a$", r"\.lokr_w2$",
+                     r"\.lokr_w2_a$", r"\.lokr_w2_b$"],
         "alpha_pattern": r"\.alpha$",
-        "down_pattern": r"\.lokr_w2_b$",
-        "up_pattern": r"\.lokr_w2_a$",
-        "verified": "unverified",
-        "note": T("Needs LyCORIS support.", "LyCORIS 拡張が必要"),
+        "down_pattern": None,
+        "up_pattern": None,
+        "verified": "measured",
+        "note": T("Needs LyCORIS support (ComfyUI handles it natively). "
+                  "The factorisation has no single rank, so none is reported; "
+                  "ss_network_dim in the metadata is often a placeholder.",
+                  "LyCORIS 拡張が必要（ComfyUI は標準で読める）。"
+                  "分解の都合で単一の rank が存在しないため表示しない。"
+                  "メタデータの ss_network_dim は便宜的な値であることが多い"),
+    },
+    {
+        # Measured against kohya-ss/controlnet-lllite. Not a LoRA and not a
+        # ControlNet backbone: it injects conditioning into the UNet's attention,
+        # so it is classified as a control model.
+        "id": "controlnet_lllite",
+        "name": T("ControlNet-LLLite (SDXL)", "ControlNet-LLLite (SDXL)"),
+        "kind": "controlnet",
+        "prefix_pattern": r"^lllite_unet_",
+        "patterns": [r"\.conditioning1\.\d+\.weight$", r"\.(down|mid|up)\.\d+\.weight$"],
+        "alpha_pattern": None,
+        "down_pattern": None,
+        "up_pattern": None,
+        "verified": "measured",
+        "note": T("kohya's ControlNet-LLLite. Needs a loader that supports it "
+                  "(ComfyUI has a dedicated node); ordinary ControlNet loaders will "
+                  "not take it. The conditioning width is usually encoded in the "
+                  "filename, e.g. v01032064e means 32/64.",
+                  "kohya の ControlNet-LLLite。対応ローダーが必要"
+                  "（ComfyUI は専用ノードがある）。通常の ControlNet ローダーでは読めない。"
+                  "条件付けの次元はファイル名に入っていることが多い（v01032064e なら 32/64）"),
     },
     {
         "id": "lycoris_full",
@@ -184,6 +216,7 @@ ADAPTER_DIALECTS = [
     {
         "id": "textual_inversion",
         "name": T("Textual Inversion / embedding", "Textual Inversion / Embedding"),
+        "kind": "embedding",
         "prefix_pattern": None,
         "patterns": [r"^string_to_param", r"^emb_params$", r"^clip_[lg]$", r"^clip_[lg]\."],
         "alpha_pattern": None,

@@ -20,6 +20,7 @@ import os
 import struct
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -38,8 +39,10 @@ def _request(url: str, start: int, end: int):
 
 
 def fetch_header(repo_id: str, filename: str, revision: str = "main"):
-    """(header_dict, 転送バイト数, 実際に使った URL) を返す。"""
-    url = f"https://huggingface.co/{repo_id}/resolve/{revision}/{filename}"
+    """Return (header_dict, bytes transferred, url used)."""
+    # Filenames may contain spaces and other characters that need escaping.
+    url = (f"https://huggingface.co/{repo_id}/resolve/{revision}/"
+           f"{urllib.parse.quote(filename, safe='/')}")
 
     # 1 段目: 先頭 8 バイトでヘッダ長を知る
     with _request(url, 0, 7) as r:

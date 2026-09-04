@@ -171,7 +171,7 @@ python tools/probe_header.py path/to/file.safetensors
 ## Verification
 
 Rules are checked against real files, not from memory. `tools/verify_rules.py`
-fetches only the headers of a set of public models over HTTP Range — no weights
+fetches only the headers of 20 public models over HTTP Range — no weights
 are downloaded and nothing is redistributed — and asserts the expected
 classification for each:
 

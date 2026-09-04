@@ -10,12 +10,13 @@ The "verified" field
 --------------------------------------------------------------------------
   "measured"   The rule was checked against a real file's header.
                See docs/key-reference.md for what was checked and where it came from.
-  "derived"    Not checked against a real file, but follows logically from a
-               measured fact (e.g. SD1.x cross-attention is 768 and SDXL is 2048,
-               both measured, so SD2.x at 1024 follows from the same mechanism).
-  "unverified" No real file at hand; inferred from key naming in public
-               implementations. Findings from these rules are printed with an
-               "[unverified / inferred]" marker.
+  "derived"    Not checked against a real file, but taken from a primary source:
+               either it follows from a measured fact (SD1.x cross-attention is
+               768 and SDXL is 2048, both measured, so SD2.x at 1024 follows from
+               the same mechanism), or the key names were read out of the
+               implementation that writes them.
+  "unverified" Neither. Inferred from key naming seen second-hand. Findings from
+               these rules are printed with an "[unverified / inferred]" marker.
 
 Keep this distinction. Measured facts and guesses must not look alike.
 
@@ -115,16 +116,26 @@ ADAPTER_DIALECTS = [
                   "倍率 1.0 で適用される実装が多い"),
     },
     {
+        # Key names taken from LyCORIS itself (lycoris/modules/loha.py,
+        # custom_state_dict): alpha, dora_scale, hada_w1_a, hada_w1_b,
+        # hada_w2_a, hada_w2_b, hada_t1, hada_t2.
+        # hada_w1_b is (rank, in_dim) in both plain and Tucker mode, so its
+        # first axis is the rank. hada_w1_a flips between (out, rank) and
+        # (rank, out) depending on mode, which is why the rank is read from _b.
         "id": "lycoris_loha",
         "name": T("LyCORIS LoHa (Hadamard product)", "LyCORIS LoHa (アダマール積)"),
         "prefix_pattern": None,
-        "patterns": [r"\.hada_w1_a$", r"\.hada_w1_b$", r"\.hada_w2_a$"],
+        "patterns": [r"\.hada_w1_a$", r"\.hada_w1_b$",
+                     r"\.hada_w2_a$", r"\.hada_w2_b$",
+                     r"\.hada_t1$", r"\.hada_t2$"],
         "alpha_pattern": r"\.alpha$",
         "down_pattern": r"\.hada_w1_b$",
         "up_pattern": r"\.hada_w1_a$",
-        "verified": "unverified",
-        "note": T("Needs LyCORIS support (ComfyUI handles it natively).",
-                  "LyCORIS 拡張が必要（ComfyUI は標準で読める）"),
+        "verified": "derived",
+        "note": T("Needs LyCORIS support (ComfyUI handles it natively). "
+                  "hada_t1 / hada_t2 present means Tucker decomposition is in use.",
+                  "LyCORIS 拡張が必要（ComfyUI は標準で読める）。"
+                  "hada_t1 / hada_t2 があれば Tucker 分解を使っている"),
     },
     {
         # Measured. LoKr has no single "rank": each module carries a small
@@ -203,15 +214,21 @@ ADAPTER_DIALECTS = [
         "note": T("Support is limited.", "対応実装が限られる"),
     },
     {
+        # From lycoris/modules/diag_oft.py: the module registers oft_blocks
+        # (block_num, block_size, block_size), an optional rescale, and an
+        # alpha buffer. There is no "oft_diag" key - an earlier version of this
+        # rule invented one.
         "id": "oft",
         "name": T("OFT / BOFT (orthogonal finetuning)", "OFT / BOFT (直交微調整)"),
         "prefix_pattern": None,
-        "patterns": [r"\.oft_blocks$", r"\.oft_diag$", r"\.boft_"],
+        "patterns": [r"\.oft_blocks$", r"\.rescale$", r"\.boft_"],
         "alpha_pattern": r"\.alpha$",
         "down_pattern": None,
         "up_pattern": None,
-        "verified": "unverified",
-        "note": T("Needs LyCORIS support.", "LyCORIS 拡張が必要"),
+        "verified": "derived",
+        "note": T("Needs LyCORIS support. The BOFT variant is a separate module and "
+                  "its key names have not been checked.",
+                  "LyCORIS 拡張が必要。BOFT は別モジュールで、キー名は未確認"),
     },
     {
         "id": "textual_inversion",
@@ -222,7 +239,7 @@ ADAPTER_DIALECTS = [
         "alpha_pattern": None,
         "down_pattern": None,
         "up_pattern": None,
-        "verified": "unverified",
+        "verified": "measured",
         "note": T("Invoked by filename from the prompt. Goes in models/embeddings.",
                   "プロンプトにファイル名を書いて呼び出す。models/embeddings に置く"),
     },
@@ -588,6 +605,61 @@ ARCHITECTURES = [
                   "1280 なら OpenCLIP-G (SDXL の 2 本目)"),
         "comfy_dir": "text_encoders",
     },
+    # ---- Textual Inversion --------------------------------------------------
+    # An embedding is just the text encoder's output width, so the tensor shape
+    # names the base directly. SDXL needs one vector per encoder, hence two
+    # tensors; SD1.x and SD2.x carry a single emb_params.
+    {
+        "id": "ti_sdxl",
+        "for": ["embedding"],
+        "name": T("Textual Inversion for SDXL", "Textual Inversion (SDXL 用)"),
+        "verified": "measured",
+        "signals": [
+            (r"^clip_g$", 5, T("an OpenCLIP-G side, which only SDXL has",
+                               "SDXL にしかない OpenCLIP-G 側を持つ")),
+            (r"^clip_l$", 2, T("a CLIP-L side", "CLIP-L 側を持つ")),
+        ],
+        "context_dims": [],
+        "hidden": [(r"^clip_g$", 1, 1280)],
+        "veto": [],
+        "note": T("SDXL has two text encoders, so an embedding for it carries one "
+                  "vector per encoder.",
+                  "SDXL は text encoder が 2 本あるため、embedding も 2 本ぶんを持つ"),
+        "comfy_dir": "embeddings",
+    },
+    {
+        "id": "ti_sd15",
+        "for": ["embedding"],
+        "name": T("Textual Inversion for SD1.x", "Textual Inversion (SD1.x 用)"),
+        "verified": "measured",
+        "signals": [
+            (r"^(emb_params|string_to_param)", 4,
+             T("a single embedding tensor", "単一の embedding テンソル")),
+        ],
+        "context_dims": [],
+        "require_dim": [(r"^emb_params$", 1, 768)],
+        "veto": [r"^clip_g$"],
+        "note": T("The vector count (the first axis) is how many prompt tokens it occupies.",
+                  "第 1 軸の数はプロンプト上で占めるトークン数"),
+        "comfy_dir": "embeddings",
+    },
+    {
+        "id": "ti_sd2",
+        "for": ["embedding"],
+        "name": T("Textual Inversion for SD2.x", "Textual Inversion (SD2.x 用)"),
+        "verified": "derived",
+        "signals": [
+            (r"^(emb_params|string_to_param)", 4,
+             T("a single embedding tensor", "単一の embedding テンソル")),
+        ],
+        "context_dims": [],
+        "require_dim": [(r"^emb_params$", 1, 1024)],
+        "veto": [r"^clip_g$"],
+        "note": T("Inferred from OpenCLIP-H's 1024-wide output; no real file checked.",
+                  "OpenCLIP-H の出力次元 1024 から導出。実ファイル未確認"),
+        "comfy_dir": "embeddings",
+    },
+
     {
         "id": "te_t5",
         "for": ["text_encoder"],

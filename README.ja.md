@@ -150,7 +150,7 @@ python tools/probe_header.py path/to/file.safetensors
 
 ## 検証
 
-ルールは記憶からでなく実ファイルで検証している。`tools/verify_rules.py` は公開モデル 20 件のヘッダだけを HTTP Range で取得し（重みはダウンロードせず、再配布もしない）、期待する判定結果と照合する。
+ルールは記憶からでなく実ファイルで検証している。`tools/verify_rules.py` は公開モデル 22 件のヘッダだけを HTTP Range で取得し（重みはダウンロードせず、再配布もしない）、期待する判定結果と照合する。
 
 ```bash
 python tools/verify_rules.py

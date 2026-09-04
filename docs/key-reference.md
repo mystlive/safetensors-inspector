@@ -1,8 +1,14 @@
 # Key reference
 
-What every detection rule in `rules.py` is based on. Anything not listed here as
-measured is marked `unverified` in the rules and is printed with an
-`[unverified / inferred]` marker at runtime.
+What every detection rule in `rules.py` is based on.
+
+Rules carry one of three confidence tags:
+
+| Tag | Meaning | Printed as |
+| --- | --- | --- |
+| `measured` | checked against a real file's header | *(nothing)* |
+| `derived` | taken from a primary source — either it follows from a measured fact, or the key names were read out of the implementation that writes them | `[derived, not directly measured]` |
+| `unverified` | inferred from key naming seen second-hand | `[unverified / inferred]` |
 
 ## How this was measured
 
@@ -204,6 +210,22 @@ Both layouts measured, on the same model published in both forms:
 Both also match the UNet component rules, since a ControlNet *is* a copy of the
 UNet's encoder half. The ControlNet-specific keys are what settle the type.
 
+### Textual Inversion
+
+An embedding is a slab of the text encoder's output width, so the tensor shape
+names the base outright.
+
+| File | Tensors | Base |
+| --- | --- | --- |
+| `boring_sdxl_v1.safetensors` | `clip_g` `[8, 1280]`, `clip_l` `[8, 768]` | SDXL — one vector per encoder |
+| `boring_e621_v4.safetensors` | `emb_params` `[8, 768]` | SD1.x |
+
+The first axis is the number of prompt tokens the embedding occupies. SD2.x would
+be `emb_params [n, 1024]`; that variant is `derived`, not measured.
+
+Note that TI is mostly distributed as `.pt` / `.bin`. Safetensors embeddings are
+the minority, which is why this took a while to find.
+
 ### ControlNet-LLLite
 
 A third control format, unrelated to either ControlNet layout:
@@ -237,12 +259,32 @@ and are marked `unverified`:
 | FLUX.1 (`double_blocks`, `single_blocks`, `img_in`) | the repository is gated |
 | SD3 / SD3.5 (`joint_blocks`) | gated |
 | HunyuanVideo (`txt_in_individual_token_refiner`) | no ungated sample found |
-| LyCORIS LoHa (`hada_w1_a`) | no sample found with a declared licence |
-| LyCORIS GLoRA, OFT/BOFT, (IA)^3 | same |
-| Textual Inversion (`string_to_param`, `emb_params`) | TI is distributed as `.pt` / `.bin`; no safetensors sample found on the Hub |
+| LyCORIS GLoRA (`a1.weight`, `b1.weight`) | not read from the source yet |
+| LyCORIS full / diff, (IA)^3 | same |
 
-SD2.x's 1024-wide cross-attention is marked `derived` rather than unverified: 768
-and 2048 are both measured and the mechanism is identical.
+## Read from the implementation, not from a file (`derived`)
+
+No sample with a declared licence turned up for these, so the key names were
+taken from LyCORIS itself rather than guessed.
+
+**LoHa** — `lycoris/modules/loha.py`, `custom_state_dict()` emits `alpha`,
+`dora_scale`, `hada_w1_a`, `hada_w1_b`, `hada_w2_a`, `hada_w2_b`, `hada_t1`,
+`hada_t2`. `hada_w1_b` is `(rank, in_dim)` in both plain and Tucker mode, so the
+rank is read from its first axis; `hada_w1_a` flips between `(out, rank)` and
+`(rank, out)` depending on mode and is not safe to read a rank from. The presence
+of `hada_t1` / `hada_t2` means Tucker decomposition.
+
+**OFT** — `lycoris/modules/diag_oft.py` registers `oft_blocks`
+`(block_num, block_size, block_size)`, an optional `rescale`, and an `alpha`
+buffer. An earlier version of this project's rule looked for an `oft_diag` key,
+which does not exist anywhere in LyCORIS. BOFT is a separate module and its keys
+have not been read.
+
+**SD2.x cross-attention width 1024** — 768 and 2048 are both measured and the
+mechanism (the text encoder's output width) is identical, so 1024 for OpenCLIP-H
+follows without needing a file.
+
+**Textual Inversion for SD2.x** — same reasoning, applied to `emb_params`.
 
 If you have any of these as safetensors, run `tools/probe_header.py` on the file
 and open an issue or a PR with the key structure. Promoting a rule from

@@ -140,6 +140,17 @@ TARGETS = [
          license="Apache-2.0", gated=False,
          expect_kind="controlnet", expect_arch="sdxl"),
 
+    dict(id="ti-sdxl", genre="Textual Inversion (SDXL)",
+         repo="FoodDesert/Boring_Embeddings",
+         file="boring_sdxl_v1.safetensors",
+         license="Apache-2.0", gated=False,
+         expect_kind="embedding", expect_arch="ti_sdxl"),
+    dict(id="ti-sd15", genre="Textual Inversion (SD1.x)",
+         repo="FoodDesert/Boring_Embeddings",
+         file="boring_e621_v4.safetensors",
+         license="Apache-2.0", gated=False,
+         expect_kind="embedding", expect_arch="ti_sd15"),
+
     # --- gated: only reachable if you accepted the licence and set HF_TOKEN ---
     dict(id="flux-schnell", genre="DiT (FLUX.1 schnell)",
          repo="black-forest-labs/FLUX.1-schnell",

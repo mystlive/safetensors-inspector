@@ -275,8 +275,10 @@ def score_architectures(modules: dict, ctx_dims: Counter, metadata: dict, kind: 
         allowed = {"vae"}
     elif kind == "text_encoder":
         allowed = {"text_encoder"}
+    elif kind == "embedding":
+        allowed = {"embedding"}
     elif kind == "unknown":
-        allowed = {"diffusion", "vae", "text_encoder"}
+        allowed = {"diffusion", "vae", "text_encoder", "embedding"}
     else:
         allowed = {"diffusion"}
 
@@ -295,6 +297,14 @@ def score_architectures(modules: dict, ctx_dims: Counter, metadata: dict, kind: 
         for pattern, want_ndim in arch.get("require_ndim", []):
             e = _representative(modules, pattern)
             if e is not None and len(e["shape"]) != want_ndim:
+                dropped = True
+                break
+        # Same idea for a specific axis, used where two variants share every key
+        # name and differ only in a width (e.g. SD1.x vs SD2.x embeddings).
+        for pattern, axis, want in arch.get("require_dim", []):
+            e = _representative(modules, pattern)
+            if e is not None and (len(e["shape"]) <= abs(axis)
+                                  or e["shape"][axis] != want):
                 dropped = True
                 break
         if dropped:

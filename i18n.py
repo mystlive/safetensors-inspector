@@ -45,7 +45,7 @@ LABELS = {
         "conf_low": "low",
 
         "verified_measured": "",
-        "verified_derived": " [derived from measurement]",
+        "verified_derived": " [derived, not directly measured]",
         "verified_unverified": " [unverified / inferred]",
 
         "kind_checkpoint": "Full checkpoint (UNet/DiT + text encoder + VAE)",
@@ -137,7 +137,7 @@ LABELS = {
         "conf_low": "低",
 
         "verified_measured": "",
-        "verified_derived": " [実測から導出]",
+        "verified_derived": " [導出・実測ではない]",
         "verified_unverified": " [未検証・推定]",
 
         "kind_checkpoint": "モデル本体（UNet/DiT + Text Encoder + VAE を含む完全なチェックポイント）",

@@ -24,11 +24,17 @@ is not loading.
 | Value | Meaning | Works alone? |
 | --- | --- | --- |
 | Full checkpoint | UNet/DiT + text encoder + VAE, all present | **yes** |
+| Diffusion backbone + VAE | the model and its VAE, no text encoder | no — text encoders needed |
 | Diffusion backbone only | just the UNet or DiT | no — text encoder and VAE needed |
 | LoRA (...layout) | a delta, applied on top of a base | no — needs its base |
+| ControlNet | a control model | no — runs alongside a base |
 | VAE only | just the latent-to-image decoder | no — attach to a model |
 | Text encoder only | just the prompt encoder | no — attach to a model |
 | Textual Inversion / embedding | a single learned word | no — called from the prompt |
+
+The distinction between the first three matters when shopping for missing parts.
+SD3.5 and some FLUX releases bundle the VAE but leave the text encoders out,
+because those are large and shared between models — that is "backbone + VAE".
 
 For a LoRA the layout name follows, and that matters — see **Dialect** below.
 
@@ -46,8 +52,10 @@ A marker may follow the name:
 | Marker | Meaning |
 | --- | --- |
 | *(none)* | the rule was checked against a real file |
-| `[derived from measurement]` | follows logically from a measured fact; not itself checked |
-| `[unverified / inferred]` | inferred from public source code, no real file seen. **Can be wrong.** |
+| `[derived, not directly measured]` | taken from a primary source — it follows from a measured fact, or the key names were read out of the implementation that writes them |
+| `[unverified / inferred]` | a guess, from key naming seen second-hand. **Can be wrong.** |
+
+Today no rule is `unverified`, but that changes as new architectures appear.
 
 `Evidence:` lines say why. `Caveat:` lines say where the answer stops:
 
@@ -125,6 +133,10 @@ distributor's guidance if there is any.
 `mixed rank: 8 (743 layers), 4 (346 layers)` means the rank varies per block.
 That is a legitimate training choice, not damage.
 
+**No rank shown for LoKr.** LyCORIS LoKr factorises differently per module, so
+there is no single rank to report — `ss_network_dim` in its metadata is usually a
+placeholder rather than a real value. Alpha is still shown.
+
 ### Dialect
 
 `LDM naming and diffusers naming are both present` — one file carrying two key
@@ -134,6 +146,15 @@ sets. Usually loads fine.
 attention: the keys are not in the `lora_unet_` form, so A1111 and ComfyUI may
 refuse it. With OneTrainer, use the file written by **save**, not one from a
 `backup` folder.
+
+`ControlNet-LLLite` is not a LoRA and not an ordinary ControlNet. It injects
+conditioning into the UNet's attention and needs a loader that supports it
+specifically — ComfyUI has a dedicated node; ordinary ControlNet loaders will
+not take it.
+
+Note that LyCORIS LoCon and DyLoRA serialise to exactly the same key names as a
+plain LoRA, so a file reported as `LoRA (kohya / sd-scripts layout)` may be any
+of the three. Nothing in the header distinguishes them.
 
 ### Quant
 
@@ -176,7 +197,10 @@ gather the matching parts:
 | --- | --- |
 | Qwen-Image / Qwen-Image-Edit | Qwen2.5-VL 7B text encoder + Qwen-Image VAE |
 | FLUX.1 | T5-XXL + CLIP-L + the Flux VAE (`ae.safetensors`) |
+| SD3 / SD3.5 | CLIP-L + CLIP-G + T5-XXL, and the VAE if not bundled |
 | Wan 2.x | the matching text encoder + 3D VAE |
+| HunyuanVideo | the LLaVA-Llama3 text encoder + CLIP-L + the HunyuanVideo 3D VAE |
+| Anima | a Qwen3-0.6B class text encoder + the matching VAE |
 
 To find out what you already have, scan the whole folder:
 
@@ -186,6 +210,12 @@ python stinspect.py "path/to/ComfyUI/models" -r -o inventory.txt
 
 Entries typed `Text encoder only` and `VAE only` whose Base line agrees are the
 ones to pair it with.
+
+### Diffusion backbone + VAE
+
+`models/checkpoints`, loaded with Load Checkpoint — but the text encoders still
+have to be supplied separately (TripleCLIPLoader for SD3.5, DualCLIPLoader for
+FLUX). The VAE is already inside, so there is no need to hunt for one.
 
 ### LoRA
 

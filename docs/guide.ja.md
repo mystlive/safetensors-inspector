@@ -35,16 +35,22 @@ LoRA の場合はこれに **強度** 行が加わる。
 
 ### 種別
 
-そのファイルが何であるか。取り得る値は 6 種類。
+そのファイルが何であるか。
 
 | 表示 | 意味 | 単体で動くか |
 | --- | --- | --- |
 | モデル本体（... 完全なチェックポイント） | UNet/DiT + Text Encoder + VAE が全部入り | **動く** |
+| モデル本体 + VAE（Text Encoder なし） | 本体と VAE。TE だけ欠けている | 動かない。TE が要る |
 | モデル本体の一部（UNet / DiT のみ） | 拡散モデル部分だけ | 動かない。TE と VAE を別途用意 |
 | LoRA (...形式) | 差分。ベースに重ねて使う | 動かない。ベースが要る |
+| ControlNet | 制御モデル | 動かない。本体と併用する |
 | VAE 単体 | 潜在→画像の変換器だけ | 動かない。本体に添える |
 | Text Encoder 単体 | プロンプト解釈器だけ | 動かない。本体に添える |
 | Textual Inversion / Embedding | 単語の埋め込みだけ | 動かない。プロンプトで呼ぶ |
+
+上 3 つの区別は、足りないものを探すときに効く。
+SD3.5 や一部の FLUX 配布物は VAE を同梱し Text Encoder だけ外してある
+（TE は大きく、複数のモデルで共用されるため）。それが「本体 + VAE」。
 
 LoRA には形式名が続く。この違いは実用上重要（後述の「キー方言」）。
 
@@ -63,9 +69,11 @@ LoRA には形式名が続く。この違いは実用上重要（後述の「キ
 
 | 印 | 意味 |
 | --- | --- |
-| （印なし） | 手元の実ファイルで確認済みのルールによる判定 |
-| `[実測から導出]` | 確認済みの事実から論理的に導いた判定。ほぼ確実だが実物では未確認 |
-| `[未検証・推定]` | 実物がなく、公開実装のキー命名からの推定。**外れることがある** |
+| （印なし） | 実ファイルで確認済みのルールによる判定 |
+| `[導出・実測ではない]` | 一次資料から取ったもの。確認済みの事実から導いたか、そのフォーマットを書き出す実装のソースからキー名を読んだか |
+| `[未検証・推定]` | 二次情報からの推測。**外れることがある** |
+
+現時点で `未検証` のルールはゼロだが、新しいアーキテクチャが出れば再び増える。
 
 `根拠:` の行はなぜそう判定したかの説明。
 `注意:` の行は「ここまでは分かるが、この先は構造からは分からない」という限界。
@@ -119,6 +127,14 @@ LoRA の rank と alpha。詳細は[後述](#rank-と-alpha-の読み方)。
 OneTrainer なら `workspace/.../backup/` ではなく、
 「保存」で書き出した方のファイルを使う。
 
+`ControlNet-LLLite` は LoRA でも通常の ControlNet でもない。
+UNet の attention に条件を注入する仕組みで、専用の対応ローダーが要る
+（ComfyUI には専用ノードがある。通常の ControlNet ローダーでは読めない）。
+
+なお LyCORIS の LoCon と DyLoRA は、通常の LoRA と全く同じキー名で保存される。
+`LoRA (kohya / sd-scripts 形式)` と出たファイルはこの 3 つのいずれでもあり得る。
+ヘッダから区別する手段はない。
+
 ### 量子化
 
 `fp8 scaled (ComfyUI 形式)` … 重みを fp8 に落とし、層ごとの補正係数を併せ持つ形式。
@@ -165,6 +181,9 @@ A1111 / Forge なら `models/Stable-diffusion`。
 | Qwen-Image / Qwen-Image-Edit | Qwen2.5-VL 7B の Text Encoder ＋ Qwen-Image VAE |
 | Anima | Qwen3-0.6B 系の Text Encoder ＋ 対応 VAE |
 | FLUX.1 | T5-XXL ＋ CLIP-L ＋ Flux VAE (ae.safetensors) |
+| SD3 / SD3.5 | CLIP-L ＋ CLIP-G ＋ T5-XXL、VAE が同梱でなければ VAE も |
+| Wan 2.x | 対応する Text Encoder ＋ 3D VAE |
+| HunyuanVideo | LLaVA-Llama3 系 Text Encoder ＋ CLIP-L ＋ HunyuanVideo の 3D VAE |
 
 手持ちに何があるかは、同じツールで `models` フォルダごと走査すれば分かる。
 
@@ -174,6 +193,13 @@ python stinspect.py "path/to/ComfyUI/models" -r --lang ja -o inventory.txt
 
 `種別: Text Encoder 単体` や `VAE 単体` のファイルが一覧に出るので、
 ベース判定が一致するものを組み合わせる。
+
+### モデル本体 + VAE（Text Encoder なし）
+
+`models/checkpoints` に置き、Load Checkpoint ノードで読む。
+ただし Text Encoder は別途つなぐ必要がある
+（SD3.5 なら TripleCLIPLoader、FLUX なら DualCLIPLoader）。
+VAE は中に入っているので探さなくてよい。
 
 ### LoRA
 
@@ -254,6 +280,11 @@ ComfyUI は倍率 1.0 として扱う（上のコードの `else: alpha = 1.0`�
 `rank 混在: 8(743層), 4(346層)` のように出る場合、
 層ごとに rank が違う（ブロック別に dim を変えて学習した LoRA）。
 異常ではない。
+
+**LoKr では rank が表示されない。**
+LyCORIS の LoKr はモジュールごとに分解の仕方が違い、単一の rank が存在しない。
+メタデータの `ss_network_dim` は便宜的な値であることが多く、実際の rank ではない。
+alpha は表示される。
 
 ---
 

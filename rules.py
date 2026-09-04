@@ -411,33 +411,62 @@ ARCHITECTURES = [
     {
         "id": "sd3",
         "name": T("SD3 / SD3.5 (MMDiT)", "SD3 / SD3.5 (MMDiT)"),
-        "verified": "unverified",
+        "verified": "measured",
         "signals": [
             (r"^joint_blocks_\d+", 4, T("MMDiT joint_blocks", "MMDiT の joint_blocks")),
             (r"^x_embedder_proj$", 1, T("MMDiT patch embedder", "MMDiT の patch embedder")),
         ],
         "context_dims": [],
         "veto": [],
-        "note": T("Not verified against a real file (the repository is gated).",
-                  "実ファイル未確認（リポジトリが gated のため）"),
+        "note": T("The single-file release bundles the VAE but not the text encoders, "
+                  "which have to be loaded separately.",
+                  "単一ファイル版は VAE を同梱するが text encoder は含まないため、"
+                  "text encoder は別途読み込む必要がある"),
         "comfy_dir": "checkpoints",
     },
     {
+        # Measured in both layouts. The single-file (LDM) release uses
+        # double_blocks / single_blocks; the diffusers release uses
+        # transformer_blocks / single_transformer_blocks, whose attention
+        # submodules are byte-for-byte the same names Qwen-Image uses. The two
+        # are separated by what surrounds the attention: Flux has ff /
+        # ff_context / norm1_context and a context_embedder, Qwen-Image has
+        # img_mlp / txt_mlp / img_mod / txt_mod. Hence the mutual vetoes.
         "id": "flux",
         "name": T("FLUX.1 (dev / schnell family)", "FLUX.1 (dev / schnell 系)"),
-        "verified": "unverified",
+        "verified": "measured",
         "signals": [
-            (r"^double_blocks_\d+", 4, T("Flux double-stream blocks", "Flux の double stream ブロック")),
-            (r"^single_blocks_\d+", 4, T("Flux single-stream blocks", "Flux の single stream ブロック")),
+            (r"^double_blocks_\d+", 4, T("Flux double-stream blocks (single-file layout)",
+                                         "Flux の double stream ブロック（単一ファイル形式）")),
+            (r"^single_blocks_\d+", 4, T("Flux single-stream blocks (single-file layout)",
+                                         "Flux の single stream ブロック（単一ファイル形式）")),
+            (r"^single_transformer_blocks_\d+", 4,
+             T("Flux single-stream blocks (diffusers layout)",
+               "Flux の single stream ブロック（diffusers 形式）")),
+            (r"^context_embedder$", 4,
+             T("a context_embedder taking T5-XXL's 4096-wide output",
+               "T5-XXL の 4096 次元出力を受ける context_embedder")),
+            (r"^transformer_blocks_\d+_ff_context_net_\d+", 3,
+             T("a separate feed-forward for the text stream",
+               "text 側に独立した feed-forward を持つ")),
+            (r"^transformer_blocks_\d+_norm1_context_linear$", 2,
+             T("separate adaLN modulation for the text stream",
+               "text 側に独立した adaLN 変調を持つ")),
             (r"^(img_in|txt_in|guidance_in|vector_in)(_|$)", 2,
-             T("Flux input embeddings", "Flux の入力埋め込み")),
+             T("Flux input embeddings (single-file layout)",
+               "Flux の入力埋め込み（単一ファイル形式）")),
         ],
         "context_dims": [],
-        "veto": [r"^txt_in_individual_token_refiner_"],
-        "note": T("Not verified against a real file (the repository is gated). "
-                  "dev and schnell share the same structure; the presence of guidance_in is the only hint.",
-                  "実ファイル未確認（リポジトリが gated のため）。"
-                  "dev と schnell は構造が同一で、guidance_in の有無が唯一の手がかり"),
+        "hidden": [(r"^context_embedder$", 1, 4096)],
+        "veto": [r"^txt_in_individual_token_refiner_",
+                 r"^transformer_blocks_\d+_(txt|img)_mod_",
+                 r"^transformer_blocks_\d+_(txt|img)_mlp_"],
+        "note": T("dev and schnell share the same structure. In the single-file layout "
+                  "guidance_in is the only hint (dev has it); in the diffusers layout it is "
+                  "time_text_embed.guidance_embedder.",
+                  "dev と schnell は構造が同一。単一ファイル形式では guidance_in の有無"
+                  "（dev にある）、diffusers 形式では time_text_embed.guidance_embedder が"
+                  "唯一の手がかり"),
         "comfy_dir": "diffusion_models",
     },
     {
@@ -457,7 +486,11 @@ ARCHITECTURES = [
         ],
         "context_dims": [],
         "hidden": [(r"^transformer_blocks_\d+_attn_add_k_proj", 1, 3072)],
-        "veto": [],
+        # Flux's diffusers layout has the same attention submodule names and the
+        # same hidden width of 3072. What it does not have is img_mod / txt_mod;
+        # what it does have is a context_embedder and ff_context.
+        "veto": [r"^context_embedder$", r"^transformer_blocks_\d+_ff_context_",
+                 r"^single_transformer_blocks_\d+"],
         "note": T("Qwen-Image and Qwen-Image-Edit share the same DiT structure and cannot be "
                   "told apart from it.",
                   "Qwen-Image と Qwen-Image-Edit は DiT 構造が同一のため、構造だけでは区別できない"),
@@ -713,6 +746,11 @@ PLACEMENT = {
     "unet_only": ("models/diffusion_models",
                   T("Load Diffusion Model node. A VAE and a text encoder are needed separately",
                     "Load Diffusion Model ノード。VAE と text encoder は別途必要")),
+    "backbone_vae": ("models/checkpoints",
+                     T("Load Checkpoint node, then feed the text encoders in separately "
+                       "(TripleCLIPLoader for SD3.5, DualCLIPLoader for Flux)",
+                       "Load Checkpoint ノード。text encoder は別途読み込む"
+                       "（SD3.5 なら TripleCLIPLoader、Flux なら DualCLIPLoader）")),
     "lora": ("models/loras",
              T("LoraLoader node. The base model has to match",
                "LoraLoader ノード。ベースモデルを合わせること")),

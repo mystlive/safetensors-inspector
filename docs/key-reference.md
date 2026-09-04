@@ -66,6 +66,18 @@ All of these are ungated, so the run needs no account and no token.
 Repositories with no declared licence were skipped, even where they held exactly
 the layout that was wanted.
 
+These three are gated. They were checked with an account that had accepted their
+licences; without one, `tools/verify_rules.py` reports them as unreachable and the
+other 24 still run.
+
+| Repository | File | License |
+| --- | --- | --- |
+| `black-forest-labs/FLUX.1-schnell` | `flux1-schnell.safetensors` | Apache-2.0 |
+| `black-forest-labs/FLUX.1-schnell` | `transformer/diffusion_pytorch_model-00001-of-00003.safetensors` | Apache-2.0 |
+| `black-forest-labs/FLUX.1-schnell` | `ae.safetensors` | Apache-2.0 |
+| `black-forest-labs/FLUX.1-dev` | `flux1-dev.safetensors` | FLUX.1 [dev] Non-Commercial |
+| `stabilityai/stable-diffusion-3.5-medium` | `sd3.5_medium.safetensors` | Stability AI Community |
+
 Additional dialects (Anima, Qwen-Image LoRAs, OneTrainer output) were measured
 against locally trained and locally held files. Those are described below by
 their structure; the files themselves are not identified.
@@ -210,6 +222,48 @@ Both layouts measured, on the same model published in both forms:
 Both also match the UNet component rules, since a ControlNet *is* a copy of the
 UNet's encoder half. The ControlNet-specific keys are what settle the type.
 
+### FLUX.1 vs Qwen-Image — the same attention, different surroundings
+
+In the diffusers layout these two are dangerously close. Their attention
+submodules are identical, down to the names, and both are 3072 wide:
+
+```
+attn.add_k_proj  attn.add_q_proj  attn.add_v_proj  attn.to_add_out
+attn.norm_added_k  attn.norm_added_q  attn.norm_k  attn.norm_q
+attn.to_k  attn.to_q  attn.to_v  attn.to_out.0
+```
+
+An earlier version of these rules classified FLUX's diffusers release as
+Qwen-Image on exactly this overlap. What separates them is everything around the
+attention:
+
+| | FLUX.1 | Qwen-Image |
+| --- | --- | --- |
+| feed-forward | `ff`, `ff_context` | `img_mlp`, `txt_mlp` |
+| modulation | `norm1.linear`, `norm1_context.linear` | `img_mod.1`, `txt_mod.1` |
+| top level | `context_embedder` `[3072, 4096]`, `x_embedder` | `img_in`, `txt_in`, `txt_norm` |
+| second stack | `single_transformer_blocks` | none |
+
+`context_embedder` is `[3072, 4096]` because it takes T5-XXL's 4096-wide output —
+a width Qwen-Image never has. The rules veto each other on these keys.
+
+FLUX's single-file release is a different layout again (`double_blocks`,
+`single_blocks`, `img_in`, `txt_in`), and note that `img_in` / `txt_in` collide
+with Qwen-Image's top-level names. They are only weak evidence for that reason.
+
+### FLUX autoencoder
+
+`ae.safetensors` is an ordinary LDM-named 2D VAE (`encoder.down.N.block.M`), so it
+matches the same rule as the SD-family VAEs. The latent width differs (16 rather
+than 4) but the structure does not.
+
+### SD3.5 single-file
+
+`sd3.5_medium.safetensors` contains the MMDiT (`joint_blocks`) **and** the VAE,
+but no text encoders — those are published separately because they are large and
+shared. That combination gets its own file kind, `backbone_vae`, so the tool does
+not tell you a VAE is missing when it is right there.
+
 ### Textual Inversion
 
 An embedding is a slab of the text encoder's output width, so the tensor shape
@@ -274,9 +328,9 @@ and are marked `unverified`:
 
 | Rule | Why it is still unverified |
 | --- | --- |
-| FLUX.1 (`double_blocks`, `single_blocks`, `img_in`) | the repository is gated |
-| SD3 / SD3.5 (`joint_blocks`) | gated |
-| HunyuanVideo (`txt_in_individual_token_refiner`) | no ungated sample found |
+| HunyuanVideo (`txt_in_individual_token_refiner`) | no sample found with a declared licence |
+
+That is the only one left.
 
 ## Read from the implementation, not from a file (`derived`)
 

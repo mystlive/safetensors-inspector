@@ -399,6 +399,10 @@ def classify_file_kind(dialect, components, modules):
     has_vae = bool(ids & {"vae_sd", "vae_3d"})
     if has_backbone and has_te and has_vae:
         return "checkpoint"
+    # SD3.5 and Flux are commonly published with the VAE bundled but the text
+    # encoders left out, since those are large and shared between models.
+    if has_backbone and has_vae:
+        return "backbone_vae"
     if has_backbone:
         return "unet_only"
     if has_te:

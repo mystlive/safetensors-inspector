@@ -50,6 +50,7 @@ LABELS = {
 
         "kind_checkpoint": "Full checkpoint (UNet/DiT + text encoder + VAE)",
         "kind_unet_only": "Diffusion backbone only (UNet / DiT). Text encoder and VAE needed separately",
+        "kind_backbone_vae": "Diffusion backbone + VAE, no text encoder (load the text encoders separately)",
         "kind_text_encoder": "Text encoder only",
         "kind_vae": "VAE only",
         "kind_controlnet": "ControlNet",
@@ -142,6 +143,7 @@ LABELS = {
 
         "kind_checkpoint": "モデル本体（UNet/DiT + Text Encoder + VAE を含む完全なチェックポイント）",
         "kind_unet_only": "モデル本体の一部（UNet / DiT のみ。Text Encoder と VAE は別途必要）",
+        "kind_backbone_vae": "モデル本体 + VAE（Text Encoder なし。別途読み込みが必要）",
         "kind_text_encoder": "Text Encoder 単体",
         "kind_vae": "VAE 単体",
         "kind_controlnet": "ControlNet",

@@ -150,7 +150,7 @@ python tools/probe_header.py path/to/file.safetensors
 
 ## 検証
 
-ルールは記憶からでなく実ファイルで検証している。`tools/verify_rules.py` は公開モデル 22 件のヘッダだけを HTTP Range で取得し（重みはダウンロードせず、再配布もしない）、期待する判定結果と照合する。
+ルールは記憶からでなく実ファイルで検証している。`tools/verify_rules.py` は公開モデル 27 件のヘッダだけを HTTP Range で取得し（重みはダウンロードせず、再配布もしない）、期待する判定結果と照合する。
 
 ```bash
 python tools/verify_rules.py
@@ -158,7 +158,7 @@ python tools/verify_rules.py
 
 使用したモデル、そこから確定した指紋、未検証のまま残っている項目は [docs/key-reference.md](docs/key-reference.md) にまとめてある。
 
-FLUX や SD3.5 は gated リポジトリにあるため、ルールは `unverified` のまま。検証するには Hugging Face で自分でライセンスに同意し、`HF_TOKEN` を設定する。設定すれば `tools/verify_rules.py` が対象に含める。
+うち 5 件は gated リポジトリ（FLUX.1、SD3.5）。アカウントなしで実行するとその 5 件は飛ばされ、残り 22 件は通る。含めるには Hugging Face で自分でライセンスに同意し、`HF_TOKEN` を設定する。
 
 ## 出力の読み方
 

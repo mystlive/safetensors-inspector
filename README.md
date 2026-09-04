@@ -171,7 +171,7 @@ python tools/probe_header.py path/to/file.safetensors
 ## Verification
 
 Rules are checked against real files, not from memory. `tools/verify_rules.py`
-fetches only the headers of 22 public models over HTTP Range — no weights
+fetches only the headers of 27 public models over HTTP Range — no weights
 are downloaded and nothing is redistributed — and asserts the expected
 classification for each:
 
@@ -182,9 +182,9 @@ python tools/verify_rules.py
 The models used, the fingerprints they established, and what remains unverified
 are all written up in [docs/key-reference.md](docs/key-reference.md).
 
-Some architectures (FLUX, SD3.5) live in gated repositories. Their rules are
-marked `unverified`. To verify them, accept the licence on Hugging Face yourself
-and set `HF_TOKEN`; `tools/verify_rules.py` will then include them.
+Five of those live in gated repositories (FLUX.1, SD3.5). Running the tool
+without an account skips them and the other 22 still pass. To include them,
+accept the licences on Hugging Face yourself and set `HF_TOKEN`.
 
 ## Reading the output
 

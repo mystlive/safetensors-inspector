@@ -205,6 +205,8 @@ gather the matching parts:
 | HiDream-I1 | CLIP-L + CLIP-G + T5-XXL + a Llama text encoder |
 | Mochi 1 | T5-XXL + the Mochi VAE |
 | Z-Image | its own text encoder + VAE, published alongside it |
+| LTX-Video | T5-XXL; the single-file releases already contain the VAE |
+| CogVideoX | T5-XXL + the CogVideoX 3D VAE |
 
 To find out what you already have, scan the whole folder:
 

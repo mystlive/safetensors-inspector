@@ -61,6 +61,8 @@ STRIP_PREFIXES = [
     ("cond_stage_model.", "text_encoder"),
     ("conditioner.embedders.", "text_encoder"),
     ("first_stage_model.", "vae"),
+    # LTX-Video ships the VAE inside the same file under a bare "vae." prefix
+    ("vae.", "vae"),
     ("te1.", "text_encoder_1"),
     ("te2.", "text_encoder_2"),
     ("te.", "text_encoder"),
@@ -645,6 +647,49 @@ ARCHITECTURES = [
         "comfy_dir": "diffusion_models",
     },
     {
+        # Single-file releases carry the VAE too, under a bare "vae." prefix,
+        # so these come out as backbone + VAE rather than backbone only.
+        "id": "ltx_video",
+        "name": T("LTX-Video", "LTX-Video"),
+        "verified": "measured",
+        "signals": [
+            (r"^patchify_proj$", 5,
+             T("LTX-Video's patchify projection", "LTX-Video の patchify 射影")),
+            (r"^(adaln_single|caption_projection)_", 3,
+             T("a single shared adaLN stage and a caption projection",
+               "共有の adaLN 段と caption 射影")),
+            (r"^transformer_blocks_\d+_scale_shift_table$", 3,
+             T("a per-block scale/shift table rather than a linear modulation",
+               "ブロックごとの scale/shift テーブル")),
+        ],
+        "context_dims": [],
+        "veto": [],
+        "note": T("Conditioned on T5-XXL. The single-file releases bundle the VAE.",
+                  "T5-XXL で条件付けする。単一ファイル版は VAE を同梱している"),
+        "comfy_dir": "checkpoints",
+    },
+    {
+        # One attention stack (attn1 only) with the text stream folded into the
+        # patch embedder, which is what patch_embed.text_proj is for.
+        "id": "cogvideox",
+        "name": T("CogVideoX", "CogVideoX"),
+        "verified": "measured",
+        "signals": [
+            (r"^patch_embed_text_proj$", 5,
+             T("a text projection built into the patch embedder",
+               "patch embedder に組み込まれた text 射影")),
+            (r"^transformer_blocks_\d+_norm[12]_linear$", 2,
+             T("adaLN modulation per block", "ブロックごとの adaLN 変調")),
+            (r"^transformer_blocks_\d+_attn1_norm_[kq]$", 2,
+             T("QK-Norm on a single attention stack",
+               "単一 attention に対する QK-Norm")),
+        ],
+        "context_dims": [],
+        "veto": [r"^context_embedder$", r"^transformer_blocks_\d+_(txt|img)_mod_"],
+        "note": T("Conditioned on T5-XXL.", "T5-XXL で条件付けする"),
+        "comfy_dir": "diffusion_models",
+    },
+    {
         # Separate refiner stacks feeding a shared layer stack.
         "id": "z_image",
         "name": T("Z-Image", "Z-Image"),
@@ -673,7 +718,8 @@ ARCHITECTURES = [
     {
         "id": "vae_3d_16ch",
         "for": ["vae"],
-        "name": T("3D VAE (Wan 2.x / Qwen-Image family)", "3D VAE (Wan 2.x / Qwen-Image 系)"),
+        "name": T("3D VAE (video models: Wan / Qwen-Image / CogVideoX / HunyuanVideo)",
+                  "3D VAE (動画系: Wan / Qwen-Image / CogVideoX / HunyuanVideo)"),
         "verified": "measured",
         "signals": [
             (r"^(encoder_downsamples|decoder_upsamples)_\d+", 4,
@@ -682,15 +728,26 @@ ARCHITECTURES = [
              T("convolution along the time axis", "時間方向の畳み込み")),
             (r"^(encoder|decoder)_(down_blocks|up_blocks)_\d+_resnets_", 3,
              T("VAE block layout", "VAE のブロック構成")),
+            (r"^(encoder|decoder)_\w*_resnets_\d+_norm\d+_conv_[by]_conv$", 3,
+             T("spatially-conditioned normalisation, as CogVideoX uses",
+               "CogVideoX 系の空間条件付き正規化")),
             (r"^(quant_conv|post_quant_conv)$", 2, T("quantisation conv", "量子化 conv")),
         ],
         "context_dims": [],
-        "require_ndim": [(r"^(quant_conv|conv1)$", 5)],
-        "hidden": [(r"^(post_quant_conv|conv2)$", 0, 16)],
+        # A 2D VAE's convolutions are [out, in, h, w]; a 3D VAE adds a time axis.
+        # Whichever of these tensors a given dialect names, the rank settles it.
+        "require_ndim": [(r"^(quant_conv|conv1|decoder_conv_in(_conv)?)$", 5)],
+        # The latent width sits on a different axis depending on which tensor
+        # names it: post_quant_conv is [latent, latent, ...] so axis 0, while
+        # decoder_conv_in is [out, latent, ...] so axis 1. Folding these into one
+        # pattern makes the answer depend on which key happens to be found first.
+        "hidden": [(r"^(post_quant_conv|conv2)$", 0, 16),
+                   (r"^decoder_conv_in_conv$", 1, 16)],
         "veto": [],
-        "note": T("Wan 2.x and Qwen-Image use the same family of 3D VAE, so telling those two "
-                  "apart from structure alone is not reliable.",
-                  "Wan 2.x と Qwen-Image は同系の 3D VAE を使うため、この 2 つの区別は構造からは困難"),
+        "note": T("Several video models share this family of 3D VAE, so which one a given "
+                  "file belongs to is not reliably separable from structure alone.",
+                  "複数の動画モデルが同系の 3D VAE を使うため、"
+                  "どれ用かを構造だけで区別するのは困難"),
         "comfy_dir": "vae",
     },
     {
@@ -707,7 +764,7 @@ ARCHITECTURES = [
              T("the quantisation conv of an SD-family VAE", "SD 系 VAE の量子化 conv")),
         ],
         "context_dims": [],
-        "require_ndim": [(r"^(quant_conv|conv1)$", 4)],
+        "require_ndim": [(r"^(quant_conv|conv1|decoder_conv_in(_conv)?)$", 4)],
         "veto": [],
         "note": T("The SD1.x and SDXL VAEs are structurally identical; only the weight values "
                   "differ (SDXL has a revision that does not break down in fp16).",

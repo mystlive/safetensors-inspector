@@ -69,6 +69,15 @@ All of these are ungated, so the run needs no account and no token.
 | `HiDream-ai/HiDream-I1-Full` | `transformer/diffusion_pytorch_model-00001-of-00007.safetensors` | MIT |
 | `genmo/mochi-1-preview` | `dit.safetensors` | Apache-2.0 |
 | `Tongyi-MAI/Z-Image-Turbo` | `transformer/diffusion_pytorch_model-00001-of-00003.safetensors` | Apache-2.0 |
+| `Lightricks/LTX-Video` | `ltxv-13b-0.9.8-dev.safetensors` | LTXV Open Weights |
+| `Lightricks/LTX-Video` | `ltxv-13b-0.9.7-distilled-lora128.safetensors` | LTXV Open Weights |
+| `THUDM/CogVideoX-5b` | `transformer/diffusion_pytorch_model-00001-of-00002.safetensors` | CogVideoX License |
+| `THUDM/CogVideoX-5b` | `vae/diffusion_pytorch_model.safetensors` | CogVideoX License |
+
+Both of those last two licences were read before use. Neither restricts
+inspection or publishing what you find. The CogVideoX licence does carry
+use-based restrictions and requires registration for commercial use — relevant
+to running the model, not to reading its header.
 
 The HunyuanVideo files are a ComfyUI repackage that declares the upstream Tencent
 licence and links to it. That licence carries a territorial restriction (it does
@@ -81,7 +90,7 @@ the layout that was wanted.
 
 These five are gated. They were checked with an account that had accepted their
 licences; without one, `tools/verify_rules.py` reports them as unreachable and the
-other 29 still run.
+other 33 still run.
 
 | Repository | File | License |
 | --- | --- | --- |
@@ -194,7 +203,16 @@ naming does not separate them. Conv rank does:
 | 3D VAE | 5 dims `[out, in, t, h, w]` | `[32, 32, 1, 1, 1]` |
 
 The rules express this as `require_ndim`, a hard condition rather than a score, so
-the two never compete.
+the two never compete. Which tensor carries the rank varies by dialect —
+`quant_conv`, `conv1`, or `decoder.conv_in.conv` — so the condition names all
+three and applies to whichever exists.
+
+**The latent width sits on a different axis depending on the tensor.**
+`post_quant_conv` is `[latent, latent, ...]`, so the width is axis 0.
+`decoder.conv_in.conv` is `[out, latent, ...]`, so it is axis 1. Folding both
+into one pattern made the check depend on which key happened to be found first,
+which silently broke the HunyuanVideo VAE when CogVideoX support was added. They
+are separate conditions now.
 
 The same Qwen-Image VAE ships under two different namings: the diffusers release
 uses `encoder.down_blocks`, the ComfyUI redistribution uses `encoder.downsamples`.
@@ -317,6 +335,12 @@ Each of these is distinctive enough that one key settles it.
 | HiDream-I1 | `double_stream_blocks.N.block.ff_i.experts.N` | mixture-of-experts feed-forward; every attention projection is duplicated with a `_t` suffix for the text stream |
 | Mochi 1 | `blocks.N.attn.qkv_x` / `qkv_y`, `t5_y_embedder` | two parallel streams named `_x` (image) and `_y` (text) throughout |
 | Z-Image | `noise_refiner.N`, `context_refiner.N`, `cap_embedder` | separate refiner stacks feeding a shared `layers.N` stack |
+| LTX-Video | `patchify_proj`, `scale_shift_table` per block | one shared `adaln_single` stage instead of per-block linear modulation. Cross-attention is 4096 wide (T5-XXL) |
+| CogVideoX | `patch_embed.text_proj` | the text stream is folded into the patch embedder; a single `attn1` stack, no `attn2` |
+
+LTX-Video's single-file releases bundle the VAE under a bare `vae.` prefix, so
+they classify as backbone + VAE. That prefix is now stripped along with the
+others.
 
 **Wan 2.2 needs no new rule.** The TI2V-5B release has the same structure as
 Wan 2.1 — `blocks.N.cross_attn.norm_q/norm_k`, single-letter q/k/v/o
@@ -387,7 +411,7 @@ Patterns must end with `$` or a real separator — never a bare trailing `_`.
 ## Nothing left unverified
 
 Every rule is now either `measured` against a real file or `derived` from a
-primary source. The tally today is 34 measured, 6 derived, 0 unverified.
+primary source. The tally today is 36 measured, 6 derived, 0 unverified, checked against 38 published files.
 
 That will not stay true — new architectures arrive faster than they can be
 checked. When you add a rule without a file to test it against, tag it

@@ -188,6 +188,8 @@ A1111 / Forge なら `models/Stable-diffusion`。
 | HiDream-I1 | CLIP-L ＋ CLIP-G ＋ T5-XXL ＋ Llama 系 Text Encoder |
 | Mochi 1 | T5-XXL ＋ Mochi の VAE |
 | Z-Image | 同梱配布の専用 Text Encoder ＋ VAE |
+| LTX-Video | T5-XXL。単一ファイル版は VAE を同梱済み |
+| CogVideoX | T5-XXL ＋ CogVideoX の 3D VAE |
 
 手持ちに何があるかは、同じツールで `models` フォルダごと走査すれば分かる。
 

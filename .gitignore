@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Cached model headers fetched by tools/verify_rules.py.
+# They are reproducible - run the tool again rather than committing them.
+tools/headers/
+
+# Local working notes and scratch output. Not part of the published project.
+dev/
+_index.md
+
+# Reports produced by the tool itself
+*.csv
+report*.txt
+inventory*.txt

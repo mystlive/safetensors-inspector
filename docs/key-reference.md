@@ -62,6 +62,14 @@ All of these are ungated, so the run needs no account and no token.
 | `monster-labs/control_v1p_sd15_qrcode_monster` | `control_v1p_sd15_qrcode_monster.safetensors` | OpenRAIL++ |
 | `monster-labs/control_v1p_sd15_qrcode_monster` | `diffusion_pytorch_model.safetensors` | OpenRAIL++ |
 | `kohya-ss/controlnet-lllite` | `controllllite_v01032064e_sdxl_canny.safetensors` | Apache-2.0 |
+| `Comfy-Org/HunyuanVideo_repackaged` | `split_files/diffusion_models/hunyuan_video_t2v_720p_bf16.safetensors` | Tencent Hunyuan Community |
+| `Comfy-Org/HunyuanVideo_repackaged` | `split_files/vae/hunyuan_video_vae_bf16.safetensors` | Tencent Hunyuan Community |
+
+The HunyuanVideo files are a ComfyUI repackage that declares the upstream Tencent
+licence and links to it. That licence carries a territorial restriction (it does
+not extend to the EU, the UK or South Korea) — worth knowing if you intend to use
+the model itself. It places no restriction on inspecting it, and in fact
+encourages publishing what you find.
 
 Repositories with no declared licence were skipped, even where they held exactly
 the layout that was wanted.
@@ -251,6 +259,34 @@ FLUX's single-file release is a different layout again (`double_blocks`,
 `single_blocks`, `img_in`, `txt_in`), and note that `img_in` / `txt_in` collide
 with Qwen-Image's top-level names. They are only weak evidence for that reason.
 
+### HunyuanVideo — Flux's layout with one addition
+
+HunyuanVideo is architecturally close to FLUX's single-file release. These are
+shared, name for name:
+
+```
+double_blocks.N  single_blocks.N  img_in  txt_in  time_in  vector_in
+guidance_in  final_layer
+```
+
+Two things tell them apart:
+
+| | HunyuanVideo | FLUX |
+| --- | --- | --- |
+| text input | `txt_in.individual_token_refiner.blocks.N`, `txt_in.c_embedder`, `txt_in.t_embedder`, `txt_in.input_embedder` | `txt_in.weight` — a bare linear |
+| image input | `img_in.proj.weight` | `img_in.weight` |
+
+The token refiner is the decisive one, and the FLUX rule vetoes on it.
+
+The ComfyUI repackage nests everything one level deeper than expected:
+
+```
+model.model.double_blocks.0.img_attn.qkv.weight
+```
+
+That `model.model.` prefix is why this rule silently matched nothing before it
+was ever tested against a file. The prefix is now stripped along with the others.
+
 ### FLUX autoencoder
 
 `ae.safetensors` is an ordinary LDM-named 2D VAE (`encoder.down.N.block.M`), so it
@@ -321,16 +357,15 @@ being reported as unidentified rather than an error, which makes it easy to miss
 
 Patterns must end with `$` or a real separator — never a bare trailing `_`.
 
-## Not verified
+## Nothing left unverified
 
-No file at hand, so these rules come from key naming in public implementations
-and are marked `unverified`:
+Every rule is now either `measured` against a real file or `derived` from a
+primary source. The tally today is 30 measured, 6 derived, 0 unverified.
 
-| Rule | Why it is still unverified |
-| --- | --- |
-| HunyuanVideo (`txt_in_individual_token_refiner`) | no sample found with a declared licence |
-
-That is the only one left.
+That will not stay true — new architectures arrive faster than they can be
+checked. When you add a rule without a file to test it against, tag it
+`unverified` and it will say so at runtime. The three invented keys above are
+what happens when that discipline slips.
 
 ## Read from the implementation, not from a file (`derived`)
 

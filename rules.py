@@ -52,6 +52,8 @@ STRIP_PREFIXES = [
     ("lllite_unet_", "unet"),
     ("lora_transformer_", "unet"),
     ("model.diffusion_model.", "unet"),
+    # ComfyUI's repackaged HunyuanVideo nests the model twice: model.model.*
+    ("model.model.", "unet"),
     ("diffusion_model.", "unet"),
     ("transformer.", "unet"),
     ("unet.", "unet"),
@@ -541,19 +543,32 @@ ARCHITECTURES = [
         "comfy_dir": "diffusion_models",
     },
     {
+        # Architecturally close to Flux: double_blocks / single_blocks, img_in,
+        # txt_in, time_in, vector_in, guidance_in, final_layer are all shared.
+        # The token refiner under txt_in is what Flux does not have, and img_in
+        # is a projection here rather than a bare linear.
         "id": "hunyuan_video",
         "name": T("HunyuanVideo", "HunyuanVideo"),
-        "verified": "unverified",
+        "verified": "measured",
         "signals": [
             (r"^(double_blocks|single_blocks)_\d+", 2,
              T("the same two-stage layout Flux uses", "Flux 系と同じ二段構成")),
-            (r"^txt_in_individual_token_refiner_", 4,
-             T("the token refiner unique to HunyuanVideo",
+            (r"^txt_in_individual_token_refiner_blocks_\d+", 5,
+             T("the per-token text refiner unique to HunyuanVideo",
                "HunyuanVideo 特有の token refiner")),
+            (r"^txt_in_(c_embedder|t_embedder|input_embedder)_", 3,
+             T("HunyuanVideo's multi-part text input stage",
+               "HunyuanVideo の多段構成 text 入力")),
+            (r"^img_in_proj$", 2,
+             T("img_in is a projection here, not a bare linear as in Flux",
+               "img_in が Flux のような素の linear ではなく projection")),
         ],
         "context_dims": [],
         "veto": [],
-        "note": T("Not verified against a real file.", "実ファイル未確認"),
+        "note": T("The ComfyUI repackage nests the weights under model.model., which is "
+                  "stripped before matching.",
+                  "ComfyUI 再配布版は重みを model.model. の下に二重に入れているが、"
+                  "照合前に取り除いている"),
         "comfy_dir": "diffusion_models",
     },
 

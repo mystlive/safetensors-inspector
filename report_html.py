@@ -165,10 +165,12 @@ JS = """
     if (!sortKey) return list;
     var col = null;
     cols.forEach(function (c) { if (c.key === sortKey) col = c; });
-    var numeric = col && col.numeric;
+    // byValue columns sort on the number behind the cell, not the text in it:
+    // "128" precedes "16" as a string, and a confidence is a word.
+    var byValue = col && col.byValue;
     return list.slice().sort(function (a, b) {
-      var x = numeric ? (a.sort[sortKey] || 0) : (a[sortKey] || '');
-      var y = numeric ? (b.sort[sortKey] || 0) : (b[sortKey] || '');
+      var x = byValue ? (a.sort[sortKey] || 0) : (a[sortKey] || '');
+      var y = byValue ? (b.sort[sortKey] || 0) : (b[sortKey] || '');
       if (x < y) return -sortDir;
       if (x > y) return sortDir;
       return a.name.localeCompare(b.name);

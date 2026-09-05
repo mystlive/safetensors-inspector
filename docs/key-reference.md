@@ -200,8 +200,8 @@ reports the mix rather than picking one.
 
 **Wan 2.2 needs no new rule.** The TI2V-5B release has the same structure —
 `blocks.N.cross_attn.norm_q` / `norm_k`, single-letter q/k/v/o projections,
-`patch_embedding`, `time_projection` — and the Wan 2.1 rule identifies it
-unchanged.
+`patch_embedding`, `time_projection` — and the existing rule (`wan`, "Wan 2.x")
+identifies it unchanged.
 
 ### Anima (DiT with an LLM adapter)
 

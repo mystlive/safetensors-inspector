@@ -559,12 +559,20 @@ def verified_mark(lang, verified):
     return L(lang, f"verified_{verified}")
 
 
+# Score threshold, sort tier, label. One table so the word shown and the order
+# the HTML table sorts by can never disagree.
+CONFIDENCE_TIERS = ((8, 3, "conf_high"), (5, 2, "conf_medium"), (0, 1, "conf_low"))
+
+
+def confidence_tier(score):
+    for threshold, tier, key in CONFIDENCE_TIERS:
+        if score >= threshold:
+            return tier, key
+    return CONFIDENCE_TIERS[-1][1:]
+
+
 def confidence(lang, score):
-    if score >= 8:
-        return L(lang, "conf_high")
-    if score >= 5:
-        return L(lang, "conf_medium")
-    return L(lang, "conf_low")
+    return L(lang, confidence_tier(score)[1])
 
 
 def wrap_note(text, lang, width=54, indent=" " * 14):
@@ -1026,21 +1034,29 @@ def summary_fields(r, lang):
     """The one-line-per-file view: type, base, confidence, rank.
 
     Shared by the CSV and the HTML table so a file cannot be summarised one way
-    in one and another way in the other.
+    in one and another way in the other. `conf_value` and `rank_value` are what
+    the HTML table sorts those two columns by: the words and the "8+" of a
+    mixed-rank file do not order sensibly as text.
     """
     strong = [a for a in r["architectures"] if a["score"] >= MIN_ARCH_SCORE]
     if strong:
-        base, conf = tr(strong[0]["name"], lang), confidence(lang, strong[0]["score"])
+        tier, key = confidence_tier(strong[0]["score"])
+        base, conf, conf_value = tr(strong[0]["name"], lang), L(lang, key), tier
     elif r["context_base"]:
         base, conf = tr(r["context_base"]["name"], lang), L(lang, "conf_high")
+        conf_value = CONFIDENCE_TIERS[0][1]
     else:
         base = conf = ""
-    rank = ""
+        conf_value = 0
+    rank, rank_value = "", 0
     if r["rank_info"] and r["rank_info"]["ranks"]:
         rs = sorted(r["rank_info"]["ranks"].items(), key=lambda x: -x[1])
+        # The most common rank stands for the file, as the displayed "8+" does.
+        rank_value = rs[0][0]
         rank = str(rs[0][0]) if len(rs) == 1 else f"{rs[0][0]}+"
     kind = tr(r["dialect"]["name"], lang) if r["dialect"] else L(lang, f"kind_{r['kind']}")
-    return kind, base, conf, rank
+    return {"kind": kind, "base": base, "conf": conf, "rank": rank,
+            "conf_value": conf_value, "rank_value": rank_value}
 
 
 def error_text(r, lang):
@@ -1058,11 +1074,15 @@ def write_csv(results, path, lang):
                       "csv_size", "csv_tensors", "csv_params", "csv_path", "csv_error")])
         for r in results:
             if r["error"]:
-                wr.writerow([r["name"], "", "", "", "", "", "", "", r["path"],
+                # The size is known even when the header is not, and it is the
+                # first thing you check against the source when a download
+                # looks truncated. The HTML table shows it for the same reason.
+                wr.writerow([r["name"], "", "", "", "",
+                             human_size(r["size_bytes"]), "", "", r["path"],
                              error_text(r, lang)])
                 continue
-            kind, base, conf, rank = summary_fields(r, lang)
-            wr.writerow([r["name"], kind, base, conf, rank,
+            f = summary_fields(r, lang)
+            wr.writerow([r["name"], f["kind"], f["base"], f["conf"], f["rank"],
                          human_size(r["size_bytes"]), r["n_tensors"],
                          human_count(r["n_params"]), r["path"], ""])
 
@@ -1075,18 +1095,21 @@ def write_csv(results, path, lang):
 HTML_ROW_CHUNK = 500
 
 HTML_COLUMNS = (
-    # key; label key (shared with the CSV so both name a column the same way);
-    # numeric (sorts by value, not text); clip (one line with an ellipsis in the
-    # table - type and base are explanatory sentences, and letting them wrap
-    # makes every row several lines tall. The full text is in the detail panel).
-    ("name", "csv_name", False, False),
-    ("kind", "csv_kind", False, True),
-    ("base", "csv_base", False, True),
-    ("conf", "csv_conf", False, False),
-    ("rank", "csv_rank", False, False),
-    ("size", "csv_size", True, False),
-    ("tensors", "csv_tensors", True, False),
-    ("params", "csv_params", True, False),
+    # label: the key the CSV uses too, so both name a column the same way.
+    # by_value: sort on row["sort"][key] rather than the displayed text - "128"
+    #   sorts before "16" as a string, and confidence is a word, not an order.
+    # num: right-align as a number.
+    # clip: one line with an ellipsis - type and base are explanatory
+    #   sentences, and letting them wrap makes every row several lines tall.
+    #   The full text is a hover away and always in the detail panel.
+    {"key": "name", "label": "csv_name"},
+    {"key": "kind", "label": "csv_kind", "clip": True},
+    {"key": "base", "label": "csv_base", "clip": True},
+    {"key": "conf", "label": "csv_conf", "by_value": True},
+    {"key": "rank", "label": "csv_rank", "by_value": True, "num": True},
+    {"key": "size", "label": "csv_size", "by_value": True, "num": True},
+    {"key": "tensors", "label": "csv_tensors", "by_value": True, "num": True},
+    {"key": "params", "label": "csv_params", "by_value": True, "num": True},
 )
 
 
@@ -1099,20 +1122,26 @@ def build_page(results, lang, full_meta=False, show_keys=False, summary=True):
     rows = []
     for i, r in enumerate(results):
         view = build_view(r, lang, full_meta=full_meta, show_keys=show_keys)
-        if r["error"]:
-            kind = base = conf = rank = tensors = params = ""
-            sort = {"size": r["size_bytes"], "tensors": 0, "params": 0}
-        else:
-            kind, base, conf, rank = summary_fields(r, lang)
+        # An unreadable file has no header to summarise, but its size is known
+        # and worth showing - a truncated download is spotted by comparing it.
+        f = {"kind": "", "base": "", "conf": "", "rank": "",
+             "conf_value": 0, "rank_value": 0}
+        tensors = params = ""
+        sort = {"size": r["size_bytes"], "tensors": 0, "params": 0}
+        if not r["error"]:
+            f = summary_fields(r, lang)
             tensors = str(r["n_tensors"])
             params = human_count(r["n_params"])
             sort = {"size": r["size_bytes"], "tensors": r["n_tensors"],
                     "params": r["n_params"]}
+        sort["conf"] = f["conf_value"]
+        sort["rank"] = f["rank_value"]
         rows.append({
             "id": i,
             "name": r["name"],
             "path": r["path"],
-            "kind": kind, "base": base, "conf": conf, "rank": rank,
+            "kind": f["kind"], "base": f["base"],
+            "conf": f["conf"], "rank": f["rank"],
             "size": human_size(r["size_bytes"]),
             "tensors": tensors, "params": params,
             "sort": sort,
@@ -1124,7 +1153,7 @@ def build_page(results, lang, full_meta=False, show_keys=False, summary=True):
                 # in a browser there is no rule, so it simply leads the list.
                 "rows": view["head_rows"] + view["rows"],
             },
-            "haystack": " ".join((r["name"], r["path"], kind, base)).lower(),
+            "haystack": " ".join((r["name"], r["path"], f["kind"], f["base"])).lower(),
         })
 
     # One file says everything in its own detail, so the panels only earn their
@@ -1147,8 +1176,11 @@ def build_page(results, lang, full_meta=False, show_keys=False, summary=True):
             "show_more": L(lang, "html_show_more"),
             "no_match": L(lang, "html_no_match"),
         },
-        "columns": [{"key": k, "label": L(lang, lk), "numeric": num, "clip": clip}
-                    for k, lk, num, clip in HTML_COLUMNS],
+        "columns": [{"key": c["key"], "label": L(lang, c["label"]),
+                     "numeric": c.get("num", False),
+                     "byValue": c.get("by_value", False),
+                     "clip": c.get("clip", False)}
+                    for c in HTML_COLUMNS],
         "rows": rows,
     }
 

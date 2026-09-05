@@ -161,6 +161,10 @@ of the three. Nothing in the header distinguishes them.
 `fp8 scaled (ComfyUI layout)` — weights in fp8 with per-layer correction factors.
 Less VRAM, but the loader has to support it.
 
+`SVDQuant / Nunchaku` — INT4 weights with a low-rank correction. Needs the
+Nunchaku nodes specifically. Note that these files contain `lora_down` and
+`lora_up` keys that are **not** a LoRA — they are part of the quantisation.
+
 ### Metadata
 
 Written at training time, and often **more reliable than the structural
@@ -210,6 +214,7 @@ gather the matching parts:
 | PixArt / SANA | T5 for PixArt, a Gemma encoder for SANA |
 | AuraFlow | T5; the single-file release already contains everything |
 | Lumina-Image 2.0 | its own Gemma-class encoder + VAE |
+| HunyuanDiT | a bilingual CLIP + mT5 (unrelated to HunyuanVideo) |
 
 To find out what you already have, scan the whole folder:
 

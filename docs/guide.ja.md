@@ -140,6 +140,10 @@ UNet の attention に条件を注入する仕組みで、専用の対応ロー�
 `fp8 scaled (ComfyUI 形式)` … 重みを fp8 に落とし、層ごとの補正係数を併せ持つ形式。
 VRAM は減るが、対応した読み込み側が要る。
 
+`SVDQuant / Nunchaku` … INT4 + 低ランク補正。Nunchaku 専用ノードが要る。
+この形式のファイルには `lora_down` / `lora_up` というキーが含まれるが、
+**LoRA ではない**。量子化方式の一部。
+
 ### メタデータ
 
 学習時に書き込まれた情報。**構造判定より信頼できる場合がある**。
@@ -193,6 +197,7 @@ A1111 / Forge なら `models/Stable-diffusion`。
 | PixArt / SANA | PixArt は T5、SANA は Gemma 系 |
 | AuraFlow | T5。単一ファイル版は全部入り |
 | Lumina-Image 2.0 | 専用の Gemma 系 Encoder ＋ VAE |
+| HunyuanDiT | 二言語 CLIP ＋ mT5（HunyuanVideo とは別系統） |
 
 手持ちに何があるかは、同じツールで `models` フォルダごと走査すれば分かる。
 

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -178,6 +179,26 @@ TARGETS = [
          # so it is not separable from SDXL by structure. Expecting sdxl here
          # records that as a known limit rather than pretending otherwise.
          expect_kind="unet_only", expect_arch="sdxl"),
+    dict(id="nunchaku-flux", genre="DiT (FLUX.1 dev, SVDQuant INT4 via Nunchaku)",
+         repo="mit-han-lab/svdq-int4-flux.1-dev",
+         file="transformer_blocks.safetensors",
+         license="FLUX.1 [dev] Non-Commercial (inherited)", gated=False,
+         expect_kind="unet_only", expect_arch="flux"),
+    dict(id="hunyuandit", genre="DiT (HunyuanDiT v1.2)",
+         repo="Tencent-Hunyuan/HunyuanDiT-v1.2-Diffusers",
+         file="transformer/diffusion_pytorch_model.safetensors",
+         license="Tencent Hunyuan Community", gated=False,
+         expect_kind="unet_only", expect_arch="hunyuan_dit"),
+    dict(id="cascade-c", genre="Stable Cascade Stage C (all-in-one)",
+         repo="stabilityai/stable-cascade",
+         file="comfyui_checkpoints/stable_cascade_stage_c.safetensors",
+         license="Stability AI Non-Commercial Research Community", gated=False,
+         expect_kind="checkpoint", expect_arch="stable_cascade"),
+    dict(id="cascade-b", genre="Stable Cascade Stage B (all-in-one)",
+         repo="stabilityai/stable-cascade",
+         file="comfyui_checkpoints/stable_cascade_stage_b.safetensors",
+         license="Stability AI Non-Commercial Research Community", gated=False,
+         expect_kind="checkpoint", expect_arch="stable_cascade"),
     dict(id="wan21-t2v", genre="Video DiT (Wan 2.1)",
          repo="Wan-AI/Wan2.1-T2V-1.3B",
          file="diffusion_pytorch_model.safetensors",
@@ -280,6 +301,10 @@ def analyze_header(header):
     metadata = header.get("__metadata__") or {}
     if not isinstance(metadata, dict):
         metadata = {}
+    tensors = {k: v for k, v in header.items()
+               if k != "__metadata__" and isinstance(v, dict)}
+    dtypes = Counter(v.get("dtype") for v in tensors.values())
+    quant = stinspect.detect_quant(tensors, dtypes)
     modules, prefix_components = stinspect.build_modules(header)
     dialect, _ = stinspect.detect_adapter(header)
     components = stinspect.detect_components(modules, prefix_components)
@@ -289,7 +314,7 @@ def analyze_header(header):
     strong = [a for a in archs if a["score"] >= stinspect.MIN_ARCH_SCORE]
     return dict(kind=kind, dialect=dialect, components=components,
                 ctx=ctx, archs=archs, strong=strong, modules=modules,
-                metadata=metadata)
+                metadata=metadata, quant=quant)
 
 
 def main(argv):
@@ -327,6 +352,8 @@ def main(argv):
               + ("" if arch_ok else f"   <- expected {t['expect_arch']}"))
         if a["dialect"]:
             print(f"      dialect {a['dialect']['id']}")
+        if a["quant"]:
+            print(f"      quant {a['quant']['id']}")
         if a["ctx"]:
             print(f"      cross-attn width {dict(a['ctx'])}")
         print(f"      components {[c['id'] for c in a['components']]}")
@@ -350,3 +377,4 @@ def main(argv):
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
+

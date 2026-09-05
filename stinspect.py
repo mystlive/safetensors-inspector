@@ -380,6 +380,19 @@ def analyze_rank(modules: dict, dialect, path: Path, header_len: int):
     return {"ranks": ranks, "alphas": alphas}
 
 
+def detect_quant(tensors: dict, dtypes: Counter):
+    """First matching quantisation rule wins, so order them specific-first."""
+    keys = list(tensors)
+    for rule in rules.QUANT_RULES:
+        pats = [re.compile(p) for p in rule.get("key_patterns", [])]
+        if pats and all(any(p.search(k) for k in keys) for p in pats):
+            return rule
+        want = rule.get("dtypes") or []
+        if want and any(dt in want for dt in dtypes):
+            return rule
+    return None
+
+
 def detect_naming_mix(modules: dict):
     """Both LDM and diffusers naming in one file - seen in the wild, not a defect."""
     ldm = re.compile(r"^(input_blocks|output_blocks|middle_block)_\d+")
@@ -462,14 +475,7 @@ def analyze(path: Path):
     arch_results = score_architectures(modules, ctx_dims, metadata, kind)
     rank_info = analyze_rank(modules, dialect, path, header_len)
 
-    quant = None
-    if any(k.endswith(".scale_weight") for k in tensors):
-        quant = "quant_fp8_scaled"
-    elif any(dt.startswith("F8") for dt in dtypes):
-        quant = "quant_fp8"
-    elif any(dt in ("U8", "I8") for dt in dtypes):
-        quant = "quant_int8"
-    result["quant"] = quant
+    result["quant"] = detect_quant(tensors, dtypes)
 
     ctx_base = None
     if ctx_dims:
@@ -624,7 +630,8 @@ def print_report(r, args, out=sys.stdout):
     w(f"  {human_size(r['size_bytes'])} / {r['n_tensors']} tensors / "
       f"{human_count(r['n_params'])} params / {dt}\n")
     if r.get("quant"):
-        row("label_quant", L(lang, r["quant"]))
+        row("label_quant", tr(r["quant"]["name"], lang)
+            + verified_mark(lang, r["quant"]["verified"]))
     if not r["size_ok"]:
         w("  " + L(lang, "size_mismatch",
                    expected=r["size_expected"], actual=r["size_bytes"]) + "\n")
@@ -773,7 +780,7 @@ def to_jsonable(r, lang):
     ]
     d["lora_targets"] = [L(lang, t) for t in d.get("lora_targets", [])]
     if d.get("quant"):
-        d["quant"] = L(lang, d["quant"])
+        d["quant"] = tr(d["quant"]["name"], lang)
     return d
 
 

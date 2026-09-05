@@ -78,6 +78,14 @@ All of these are ungated, so the run needs no account and no token.
 | `fal/AuraFlow-v0.3` | `aura_flow_0.3.safetensors` | Apache-2.0 |
 | `Alpha-VLLM/Lumina-Image-2.0` | `transformer/diffusion_pytorch_model-00001-of-00002.safetensors` | Apache-2.0 |
 | `Kwai-Kolors/Kolors` | `unet/diffusion_pytorch_model.fp16.safetensors` | Apache-2.0 |
+| `Tencent-Hunyuan/HunyuanDiT-v1.2-Diffusers` | `transformer/diffusion_pytorch_model.safetensors` | Tencent Hunyuan Community |
+| `stabilityai/stable-cascade` | `comfyui_checkpoints/stable_cascade_stage_c.safetensors` | Stability AI NC Research Community |
+| `stabilityai/stable-cascade` | `comfyui_checkpoints/stable_cascade_stage_b.safetensors` | Stability AI NC Research Community |
+| `mit-han-lab/svdq-int4-flux.1-dev` | `transformer_blocks.safetensors` | FLUX.1 [dev] Non-Commercial (inherited) |
+
+The Stable Cascade licence is non-commercial and permits "research or
+non-commercial purposes"; it places no restriction on inspection. The Nunchaku
+build declares the upstream FLUX.1 [dev] licence and links to it.
 
 The LTX-Video and CogVideoX entries declare "other" rather than a named licence,
 so both were read before use. Neither restricts inspection or publishing what you
@@ -95,7 +103,7 @@ the layout that was wanted.
 
 These five are gated. They were checked with an account that had accepted their
 licences; without one, `tools/verify_rules.py` reports them as unreachable and the
-other 38 still run.
+other 42 still run.
 
 | Repository | File | License |
 | --- | --- | --- |
@@ -347,6 +355,36 @@ Each of these is distinctive enough that one key settles it.
 | PixArt-alpha / Sigma | `adaln_single` + `pos_embed.proj`, no `caption_norm` | cross-attention 1152 |
 | Lumina-Image 2.0 | `time_caption_embed.caption_embedder` | otherwise the same refiner layout as Z-Image |
 
+### Quantisation formats
+
+| Format | Marker | Notes |
+| --- | --- | --- |
+| fp8 scaled (ComfyUI) | a top-level `scaled_fp8` key, `.scale_weight` / `.scale_input` beside each weight | the weight itself is `F8_E4M3` |
+| fp8 plain | `F8_*` dtypes with no scale tensors | |
+| SVDQuant (Nunchaku) | `.qweight` + `.wscales`, plus `.smooth` / `.smooth_orig` / `.wzeros` | INT4 packed into `I32`, with a low-rank correction |
+
+**SVDQuant carries `lora_down` and `lora_up` keys, and they are not a LoRA.**
+They are the low-rank half of the quantisation scheme. They happen not to collide
+with the LoRA dialects because those require a `.weight` suffix
+(`.lora_down.weight`) which SVDQuant does not have — a narrow escape rather than
+a designed one. Worth remembering if the LoRA patterns are ever loosened.
+
+### Two unrelated things called Hunyuan
+
+`HunyuanDiT` and `HunyuanVideo` share a name and a licence but not an
+architecture. HunyuanDiT is `blocks.N` with `attn1`/`attn2` and a
+`text_embedding_padding`; HunyuanVideo is Flux-shaped with `double_blocks` and a
+token refiner.
+
+### Stable Cascade
+
+Stages B and C are separate files that both classify as full checkpoints — each
+bundles a text encoder and a VAE stage. Shared markers are `clip_mapper` /
+`clip_img_mapper`, `clf`, and `channelwise` / `depthwise` blocks rather than a
+UNet resnet stack. `clip_img_mapper` means Stage C, `effnet_mapper` means Stage B,
+and `modelspec.architecture` states it outright. Both are needed to generate:
+Stage C makes the small latent, Stage B decodes it.
+
 ### Three families that overlap on `adaln_single`
 
 PixArt, SANA and LTX-Video all carry `adaln_single` and `caption_projection`.
@@ -458,7 +496,7 @@ Patterns must end with `$` or a real separator — never a bare trailing `_`.
 ## Nothing left unverified
 
 Every rule is now either `measured` against a real file or `derived` from a
-primary source. The tally today is 41 measured, 6 derived, 0 unverified, checked against 43 published files.
+primary source. The tally today is 47 measured, 6 derived, 0 unverified, checked against 47 published files.
 
 That will not stay true — new architectures arrive faster than they can be
 checked. When you add a rule without a file to test it against, tag it

@@ -65,6 +65,8 @@ STRIP_PREFIXES = [
     ("vae.", "vae"),
     # AuraFlow's single-file release bundles the text encoder too
     ("text_encoders.", "text_encoder"),
+    # Stable Cascade's all-in-one files use the singular form
+    ("text_encoder.", "text_encoder"),
     ("te1.", "text_encoder_1"),
     ("te2.", "text_encoder_2"),
     ("te.", "text_encoder"),
@@ -752,6 +754,56 @@ ARCHITECTURES = [
         "comfy_dir": "diffusion_models",
     },
     {
+        "id": "hunyuan_dit",
+        "name": T("HunyuanDiT", "HunyuanDiT"),
+        "verified": "measured",
+        "signals": [
+            (r"^text_embedding_padding$", 5,
+             T("a learned padding embedding for the text side",
+               "text 側の学習済みパディング埋め込み")),
+            (r"^time_extra_emb_", 3,
+             T("HunyuanDiT's extra timestep conditioning",
+               "HunyuanDiT の追加 timestep 条件付け")),
+            (r"^blocks_\d+_attn2_norm_[kq]$", 2,
+             T("QK-Norm on the cross-attention", "cross-attention の QK-Norm")),
+        ],
+        "context_dims": [],
+        "veto": [],
+        "note": T("Unrelated to HunyuanVideo despite the shared name. Conditioned on a "
+                  "bilingual CLIP plus mT5.",
+                  "名前は似ているが HunyuanVideo とは別系統。"
+                  "二言語 CLIP と mT5 で条件付けする"),
+        "comfy_dir": "diffusion_models",
+    },
+    {
+        # Stage B and Stage C share these markers; modelspec.architecture in the
+        # metadata says which, and the mapper tells them apart structurally.
+        "id": "stable_cascade",
+        "name": T("Stable Cascade (Würstchen v3)", "Stable Cascade (Würstchen v3)"),
+        "verified": "measured",
+        "signals": [
+            (r"^(clip_mapper|clip_img_mapper)$", 5,
+             T("the CLIP mapper that conditions the cascade",
+               "cascade を条件付けする CLIP mapper")),
+            (r"^down_blocks_\d+_\d+_(channelwise|depthwise|mapper_sca)", 3,
+             T("depthwise/channelwise blocks rather than a UNet resnet stack",
+               "UNet の resnet ではなく depthwise/channelwise ブロック")),
+            (r"^clf_\d+$", 2, T("the output classifier head", "出力の classifier 層")),
+            (r"^(effnet_mapper|pixels_mapper)_\d+", 2,
+             T("Stage B's effnet and pixel mappers",
+               "Stage B の effnet / pixel mapper")),
+        ],
+        "context_dims": [],
+        "veto": [],
+        "note": T("Stage C generates the small latent and Stage B decodes it; both are "
+                  "needed. clip_img_mapper means Stage C, effnet_mapper means Stage B, "
+                  "and modelspec.architecture in the metadata states it outright.",
+                  "Stage C が小さい潜在を生成し Stage B が復号する。両方必要。"
+                  "clip_img_mapper なら Stage C、effnet_mapper なら Stage B。"
+                  "メタデータの modelspec.architecture にも明記されている"),
+        "comfy_dir": "checkpoints",
+    },
+    {
         "id": "sana",
         "name": T("SANA", "SANA"),
         "verified": "measured",
@@ -1002,6 +1054,48 @@ ARCHITECTURES = [
         "note": T("T5-XXL as used by FLUX.1 and SD3.",
                   "FLUX.1 / SD3 が使う T5-XXL など"),
         "comfy_dir": "text_encoders",
+    },
+]
+
+# =========================================================================
+# 5b. Quantisation formats, checked in order - the first match wins.
+#     key_patterns match raw tensor keys; dtypes match the dtype names present.
+# =========================================================================
+QUANT_RULES = [
+    {
+        # Nunchaku / SVDQuant: INT4 weights (packed into I32) plus a low-rank
+        # correction. Note the lora_down / lora_up keys - they are part of the
+        # quantisation scheme, not a LoRA. They lack the ".weight" suffix that
+        # the LoRA dialects require, so they do not collide.
+        "id": "quant_svdquant",
+        "name": T("SVDQuant / Nunchaku (INT4 weights with a low-rank correction)",
+                  "SVDQuant / Nunchaku (INT4 + 低ランク補正)"),
+        "key_patterns": [r"\.qweight$", r"\.wscales$"],
+        "dtypes": [],
+        "verified": "measured",
+    },
+    {
+        "id": "quant_fp8_scaled",
+        "name": T("fp8 scaled (ComfyUI layout, carries scale_weight)",
+                  "fp8 scaled (ComfyUI 形式。scale_weight を伴う)"),
+        "key_patterns": [r"\.scale_weight$"],
+        "dtypes": [],
+        "verified": "measured",
+    },
+    {
+        "id": "quant_fp8",
+        "name": T("fp8 (no scale correction)", "fp8 (スケール補正なし)"),
+        "key_patterns": [],
+        "dtypes": ["F8_E4M3", "F8_E5M2", "F8_E8M0", "F8_E4M3FNUZ", "F8_E5M2FNUZ"],
+        "verified": "measured",
+    },
+    {
+        "id": "quant_int8",
+        "name": T("possibly 8-bit quantized (contains U8 / I8 tensors)",
+                  "8bit 量子化の可能性（U8 / I8 テンソルを含む）"),
+        "key_patterns": [],
+        "dtypes": ["U8", "I8"],
+        "verified": "measured",
     },
 ]
 

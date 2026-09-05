@@ -185,17 +185,26 @@ def build_modules(header: dict):
     return modules, prefix_components
 
 
-def _representative(modules, pattern):
-    """First tensor entry whose skeleton matches `pattern`."""
+def _representatives(modules, pattern, limit=8):
+    """Every tensor entry whose skeleton matches `pattern`, up to `limit`.
+
+    Returning only the first match makes the answer depend on dictionary order,
+    which silently broke the HunyuanVideo VAE once already: two tensors carried
+    the latent width on different axes and whichever was reached first won.
+    """
     p = re.compile(pattern)
+    found = []
     for skel, entries in modules.items():
         if not p.search(skel):
             continue
         for sfx in _REPRESENTATIVE:
             e = entries.get(sfx)
             if e and e.get("shape"):
-                return e
-    return None
+                found.append(e)
+                break
+        if len(found) >= limit:
+            break
+    return found
 
 
 # ---------------------------------------------------------------------------
@@ -294,18 +303,21 @@ def score_architectures(modules: dict, ctx_dims: Counter, metadata: dict, kind: 
 
         # If such a tensor exists, its rank must match. Absent tensor: skip the
         # check, since another dialect may name it differently.
+        # A required condition is satisfied if ANY matching tensor satisfies it.
+        # If nothing matches the pattern at all the condition does not apply -
+        # another dialect may name that tensor differently.
         dropped = False
         for pattern, want_ndim in arch.get("require_ndim", []):
-            e = _representative(modules, pattern)
-            if e is not None and len(e["shape"]) != want_ndim:
+            cands = _representatives(modules, pattern)
+            if cands and not any(len(e["shape"]) == want_ndim for e in cands):
                 dropped = True
                 break
         # Same idea for a specific axis, used where two variants share every key
         # name and differ only in a width (e.g. SD1.x vs SD2.x embeddings).
         for pattern, axis, want in arch.get("require_dim", []):
-            e = _representative(modules, pattern)
-            if e is not None and (len(e["shape"]) <= abs(axis)
-                                  or e["shape"][axis] != want):
+            cands = _representatives(modules, pattern)
+            if cands and not any(len(e["shape"]) > abs(axis) and e["shape"][axis] == want
+                                 for e in cands):
                 dropped = True
                 break
         if dropped:
@@ -330,8 +342,9 @@ def score_architectures(modules: dict, ctx_dims: Counter, metadata: dict, kind: 
                                   "ja": f"cross-attention の入力次元 = {dim}"}, None))
 
         for pattern, axis, expected in arch.get("hidden", []):
-            e = _representative(modules, pattern)
-            if e is not None and len(e["shape"]) > abs(axis) and e["shape"][axis] == expected:
+            cands = _representatives(modules, pattern)
+            if any(len(e["shape"]) > abs(axis) and e["shape"][axis] == expected
+                   for e in cands):
                 score += 3
                 evidence.append(({"en": f"a representative tensor is {expected} wide, as expected",
                                   "ja": f"代表テンソルの次元 {expected} が一致"}, None))

@@ -188,6 +188,14 @@ python tools/verify_rules.py
 The models used, the fingerprints they established, and what remains unverified
 are all written up in [docs/key-reference.md](docs/key-reference.md).
 
+A second script checks the project against itself — that the counts quoted in
+these files match the rule tables, that no rule matches nothing, that both
+language catalogues agree, and that malformed files do not crash anything:
+
+```bash
+python tools/self_check.py
+```
+
 Five of those live in gated repositories (FLUX.1, SD3.5). Running the tool
 without an account skips them and the other 42 still pass. To include them,
 accept the licences on Hugging Face yourself and set `HF_TOKEN`.

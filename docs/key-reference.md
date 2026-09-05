@@ -82,6 +82,8 @@ All of these are ungated, so the run needs no account and no token.
 | `stabilityai/stable-cascade` | `comfyui_checkpoints/stable_cascade_stage_c.safetensors` | Stability AI NC Research Community |
 | `stabilityai/stable-cascade` | `comfyui_checkpoints/stable_cascade_stage_b.safetensors` | Stability AI NC Research Community |
 | `mit-han-lab/svdq-int4-flux.1-dev` | `transformer_blocks.safetensors` | FLUX.1 [dev] Non-Commercial (inherited) |
+| `FoodDesert/Boring_Embeddings` | `boring_sdxl_v1.safetensors` | Apache-2.0 |
+| `FoodDesert/Boring_Embeddings` | `boring_e621_v4.safetensors` | Apache-2.0 |
 
 The Stable Cascade licence is non-commercial and permits "research or
 non-commercial purposes"; it places no restriction on inspection. The Nunchaku

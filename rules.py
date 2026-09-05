@@ -394,8 +394,13 @@ ARCHITECTURES = [
         "name": T("SD1.x (Stable Diffusion 1.4 / 1.5)", "SD1.x (Stable Diffusion 1.4 / 1.5 系)"),
         "verified": "measured",
         "signals": [
-            (r"^cond_stage_model", 2, T("SD1.x text encoder placement",
-                                        "SD1.x の text encoder 配置")),
+            # "cond_stage_model." is stripped before matching, so this has to be
+            # written against what survives: transformer.text_model.*. SDXL's
+            # first encoder normalises to 0_transformer_text_model_, so the
+            # anchor keeps them apart.
+            (r"^transformer_text_model_", 2,
+             T("a single CLIP text encoder sitting directly under the checkpoint",
+               "チェックポイント直下に CLIP text encoder が 1 本だけある配置")),
             (r"^input_blocks_\d+", 1, T("LDM-named UNet", "LDM 命名の UNet")),
         ],
         "context_dims": [768],
@@ -409,7 +414,11 @@ ARCHITECTURES = [
                   "SDXL 系 (SDXL 1.0 / Illustrious / Pony / NoobAI / Animagine ほか)"),
         "verified": "measured",
         "signals": [
-            (r"^conditioner_embedders_1_", 4,
+            # "conditioner.embedders." is stripped, leaving "1_model_..." for
+            # the second encoder. Writing this as ^conditioner_embedders_1_
+            # matched nothing at all for a long time without anyone noticing,
+            # because the other signals carried the verdict.
+            (r"^1_model_", 4,
              T("the second text encoder (OpenCLIP-G) that only SDXL has",
                "SDXL 特有の 2 本目 text encoder (OpenCLIP-G)")),
             (r"^label_emb_\d+", 3,

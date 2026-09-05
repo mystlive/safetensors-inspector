@@ -154,8 +154,8 @@ only recourse.
 
 ### LoRA dialects
 
-Four layouts were observed. Suffixes alone are not enough to tell them apart —
-the prefix has to be checked too.
+Six layouts, the first five measured against a real file. Suffixes alone are not
+enough to tell them apart — the prefix has to be checked too.
 
 | Prefix | Suffixes | Written by |
 | --- | --- | --- |
@@ -164,7 +164,7 @@ the prefix has to be checked too.
 | `diffusion_model.` | `.lora_A.weight`, `.lora_B.weight` | ai-toolkit, diffusers, PEFT |
 | `lora_unet_` / `lora_te*_` | `.lokr_w1`, `.lokr_w2`, `.alpha` | LyCORIS LoKr (measured) |
 | `lllite_unet_` | `.conditioning1.N`, `.down.N`, `.mid.N`, `.up.N` | kohya ControlNet-LLLite (measured) |
-| any | `.hada_w*`, `.oft_blocks`, `.on_input`, `.diff` | other LyCORIS variants (derived from the LyCORIS source) |
+| any | `.hada_w*`, `.oft_blocks`, `.on_input`, `.diff`, `.a1.weight` / `.b1.weight` | other LyCORIS variants — LoHa, OFT/BOFT, (IA)^3, full/diff, GLoRA (derived from the LyCORIS source) |
 
 The kohya and OneTrainer-internal layouts share the same suffixes. Classifying by
 suffix alone mislabels one as the other — this was an actual bug found during
@@ -197,6 +197,11 @@ reports the mix rather than picking one.
 - `blocks.N.cross_attn.norm_q` / `norm_k` — note the word order; Anima uses `k_norm`
 - `patch_embedding`, `time_embedding`, `time_projection`, `text_embedding`, `head`
 - Hidden width 1536 on the 1.3B model
+
+**Wan 2.2 needs no new rule.** The TI2V-5B release has the same structure —
+`blocks.N.cross_attn.norm_q` / `norm_k`, single-letter q/k/v/o projections,
+`patch_embedding`, `time_projection` — and the Wan 2.1 rule identifies it
+unchanged.
 
 ### Anima (DiT with an LLM adapter)
 
@@ -414,6 +419,10 @@ difference:
 The Z-Image rule was written first and matched Lumina on the refiner stacks
 alone. They veto each other now.
 
+Z-Image is also the reason `layers` was added to the backbone-block component
+rule. That is safe because a text encoder's layers normalise to `model_layers_N`:
+the bare `model.` prefix is not stripped, so `^layers_\d+` cannot reach them.
+
 ### Kolors is not separable from SDXL
 
 Kolors reuses the SDXL UNet wholesale and projects its ChatGLM text encoder down
@@ -425,18 +434,11 @@ This matters in practice: the tool will say SDXL, and a Kolors UNet will not wor
 with a CLIP text encoder. The SDXL rule's caveat says so. This is recorded as an
 expected result in the verification run rather than papered over.
 
-LTX-Video's single-file releases bundle the VAE under a bare `vae.` prefix, so
+### LTX-Video bundles its VAE
+
+LTX-Video's single-file releases carry the VAE under a bare `vae.` prefix, so
 they classify as backbone + VAE. That prefix is now stripped along with the
 others.
-
-**Wan 2.2 needs no new rule.** The TI2V-5B release has the same structure as
-Wan 2.1 — `blocks.N.cross_attn.norm_q/norm_k`, single-letter q/k/v/o
-projections, `patch_embedding`, `time_projection` — and the existing rule
-identifies it unchanged.
-
-Z-Image is the reason `layers` was added to the backbone-block component rule.
-That is safe because a text encoder's layers normalise to `model_layers_N`: the
-bare `model.` prefix is not stripped, so `^layers_\d+` cannot reach them.
 
 ### Textual Inversion
 

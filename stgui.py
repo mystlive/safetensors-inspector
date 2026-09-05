@@ -18,7 +18,6 @@ only from the main thread.
 from __future__ import annotations
 
 import queue
-import re
 import sys
 import tempfile
 import threading
@@ -35,21 +34,23 @@ from i18n import L
 # check both language catalogues carry them.
 GUI_KEYS = (
     "gui_title", "gui_target", "gui_output", "gui_output_default",
-    "gui_browse", "gui_recursive", "gui_meta", "gui_keys", "gui_lang",
-    "gui_scan", "gui_cancel", "gui_pick_target", "gui_pick_output",
-    "gui_need_target", "gui_collecting", "gui_progress", "gui_none",
-    "gui_done", "gui_cancelled", "gui_failed",
+    "gui_output_default_path", "gui_browse", "gui_recursive", "gui_meta",
+    "gui_keys", "gui_lang", "gui_scan", "gui_cancel", "gui_pick_target",
+    "gui_pick_output", "gui_need_target", "gui_collecting", "gui_progress",
+    "gui_none", "gui_done", "gui_cancelled", "gui_failed",
 )
 
 
 def default_report_path(target: Path) -> Path:
     """Where a report goes when the output box is left empty.
 
-    A stable name per scanned folder: a rescan replaces the file the browser
-    already has open instead of leaving a trail behind in the temp folder.
+    The name comes from stinspect so it matches what `--html auto` writes; only
+    the folder differs. A temporary one here: this report is opened at once, and
+    a stable name per scanned folder means a rescan replaces the file the
+    browser already has open instead of leaving a trail behind.
     """
-    stem = re.sub(r"[^\w.-]", "_", target.name) or "report"
-    return Path(tempfile.gettempdir()) / f"stinspect-{stem}.html"
+    return (Path(tempfile.gettempdir())
+            / stinspect.default_report_name(target))
 
 
 class App(tk.Tk):
@@ -109,6 +110,9 @@ class App(tk.Tk):
                            state="readonly", width=5)
         box.grid(row=0, column=4)
         box.bind("<<ComboboxSelected>>", lambda _e: self._retranslate())
+        # Say where an empty output box will actually write, as soon as there
+        # is a folder to name the file after.
+        self.target.trace_add("write", lambda *_: self._show_default())
 
         self.bar = ttk.Progressbar(frame, mode="determinate")
         self.bar.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(8, 4))
@@ -124,7 +128,7 @@ class App(tk.Tk):
         self.title(L(lang, "gui_title"))
         self.labels["target"].config(text=L(lang, "gui_target"))
         self.labels["output"].config(text=L(lang, "gui_output"))
-        self.labels["output_default"].config(text=L(lang, "gui_output_default"))
+        self._show_default()
         for key in ("browse_target", "browse_output"):
             self.labels[key].config(text=L(lang, "gui_browse"))
         self.labels["recursive"].config(text=L(lang, "gui_recursive"))
@@ -133,6 +137,14 @@ class App(tk.Tk):
         self.labels["lang"].config(text=L(lang, "gui_lang"))
         self.run.config(text=L(lang, "gui_cancel" if self.worker else "gui_scan"))
 
+    def _show_default(self):
+        lang = self.lang.get()
+        target = self.target.get().strip()
+        text = (L(lang, "gui_output_default_path",
+                  path=default_report_path(Path(target)))
+                if target else L(lang, "gui_output_default"))
+        self.labels["output_default"].config(text=text)
+
     # -- actions -----------------------------------------------------------
     def _pick_target(self):
         path = filedialog.askdirectory(title=L(self.lang.get(), "gui_pick_target"))
@@ -140,9 +152,21 @@ class App(tk.Tk):
             self.target.set(path)
 
     def _pick_output(self):
+        current = self.output.get().strip()
+        target = self.target.get().strip()
+        # Offer the name that would be used anyway, so the dialog never opens
+        # with an empty file name box.
+        if current:
+            initial_dir, initial_file = str(Path(current).parent), Path(current).name
+        else:
+            initial_dir = ""
+            initial_file = (stinspect.default_report_name(target) if target
+                            else "stinspect-report.html")
         path = filedialog.asksaveasfilename(
             title=L(self.lang.get(), "gui_pick_output"),
             defaultextension=".html",
+            initialdir=initial_dir,
+            initialfile=initial_file,
             filetypes=[("HTML", "*.html")])
         if path:
             self.output.set(path)

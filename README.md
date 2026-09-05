@@ -84,6 +84,9 @@ python stinspect.py path/to/models -r --csv inventory.csv
 # one HTML file you can open in a browser: sort, search, click a row for the full report
 python stinspect.py path/to/models -r --html report.html
 
+# ... or let it name the file after the folder (here: stinspect-models.html)
+python stinspect.py path/to/models -r --html auto
+
 # Japanese output
 python stinspect.py path/to/models --lang ja
 ```
@@ -94,6 +97,7 @@ python stinspect.py path/to/models --lang ja
 | `-o PATH` | write the report to a file (UTF-8 with BOM) |
 | `--csv PATH` | write a summary table (UTF-8 with BOM, opens in Excel) |
 | `--html PATH` | write a self-contained HTML report: a sortable, searchable table whose rows open into the full report |
+| `--html auto` | the same, named `stinspect-<folder>.html` in the current folder |
 | `--meta` | print all metadata instead of the highlights |
 | `--keys` | also print sample key names, for investigating unidentified files |
 | `--json` | emit JSON |
@@ -116,8 +120,9 @@ python stgui.py
 On Windows, `pythonw stgui.py` starts it without a console window behind it.
 
 It uses tkinter, which ships with Python, so there is still nothing to install.
-Leave the report box empty and the file goes to a temporary folder, named after
-the folder scanned; fill it in (or use Browse) to keep the report somewhere.
+Leave the report box empty and the file goes to a temporary folder under the
+same name `--html auto` would use; the window shows the exact path once a
+folder is chosen. Fill the box in, or use Browse, to keep the report somewhere.
 The window only starts scans — everything you read afterwards is the same HTML
 report `--html` writes. There is no drag and drop: that needs `tkdnd`, which
 would be a dependency.

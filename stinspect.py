@@ -1185,6 +1185,28 @@ def build_page(results, lang, full_meta=False, show_keys=False, summary=True):
     }
 
 
+# The literal `--html` value that asks for a generated name. A sentinel rather
+# than an optional argument: `--html` with nargs="?" would swallow the next
+# word, so `stinspect.py --html models -r` would scan the current folder and
+# write a file called `models` without complaining.
+HTML_AUTO = "auto"
+
+
+def default_report_name(target):
+    """The report file name used when none is given.
+
+    Named after what was scanned and stable for it, so a rescan replaces the
+    report the browser already has open instead of leaving a trail behind.
+    The launcher writes it to a temporary folder, `--html auto` to the current
+    one; only the name is decided here.
+    """
+    # Resolved first, so scanning "." is named after the folder you are in
+    # rather than falling back to the generic name.
+    p = Path(target).resolve()
+    stem = re.sub(r"[^\w.-]", "_", p.name if p.is_dir() else p.stem) or "report"
+    return f"stinspect-{stem}.html"
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -1217,7 +1239,7 @@ def main():
     ap.add_argument("--keys", action="store_true", help=L(lang, "help_keys"))
     ap.add_argument("--json", action="store_true", help=L(lang, "help_json"))
     ap.add_argument("--csv", metavar="PATH", help=L(lang, "help_csv"))
-    ap.add_argument("--html", metavar="PATH", help=L(lang, "help_html"))
+    ap.add_argument("--html", metavar=f"PATH|{HTML_AUTO}", help=L(lang, "help_html"))
     ap.add_argument("-o", "--out", metavar="PATH", help=L(lang, "help_out"))
     ap.add_argument("--unresolved", metavar="PATH", help=L(lang, "help_unresolved"))
     ap.add_argument("--no-summary", action="store_true", help=L(lang, "help_no_summary"))
@@ -1262,11 +1284,13 @@ def main():
         print(L(args.lang, "wrote_csv", path=args.csv))
 
     if args.html:
+        html_path = (default_report_name((args.targets or ["."])[0])
+                     if args.html == HTML_AUTO else args.html)
         report_html.write_html(
             build_page(results, args.lang, full_meta=args.meta,
                        show_keys=args.keys, summary=not args.no_summary),
-            args.html)
-        print(L(args.lang, "wrote_html", path=args.html))
+            html_path)
+        print(L(args.lang, "wrote_html", path=html_path))
 
     if args.unresolved:
         n = write_unresolved(results, args.unresolved, args.lang)

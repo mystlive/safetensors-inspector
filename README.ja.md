@@ -77,6 +77,9 @@ python stinspect.py path/to/models -r --lang ja --csv inventory.csv
 
 # ブラウザで開ける HTML 1 ファイルに（並べ替え・検索でき、行を開くと詳細が出る）
 python stinspect.py path/to/models -r --lang ja --html report.html
+
+# 名前はフォルダ名から作らせる（この例なら stinspect-models.html）
+python stinspect.py path/to/models -r --lang ja --html auto
 ```
 
 | オプション | 動作 |
@@ -85,6 +88,7 @@ python stinspect.py path/to/models -r --lang ja --html report.html
 | `-o PATH` | レポートをファイルに書き出す（UTF-8 BOM 付き） |
 | `--csv PATH` | 一覧表を CSV に（UTF-8 BOM 付き。Excel でそのまま開ける） |
 | `--html PATH` | 自己完結の HTML レポートを書き出す（並べ替え・検索できる一覧。行を開くと詳細） |
+| `--html auto` | 同じもの。カレントフォルダに `stinspect-<フォルダ名>.html` として書く |
 | `--meta` | メタデータを省略せず全部出す |
 | `--keys` | キー名のサンプルも出す（判別できなかったファイルの調査用） |
 | `--json` | JSON で出力 |
@@ -105,7 +109,8 @@ python stgui.py
 Windows では `pythonw stgui.py` で起動すると、後ろに黒いコンソールが出ない。
 
 使うのは Python 同梱の tkinter だけなので、追加でインストールするものはない。
-出力先を空欄にすると、走査したフォルダ名を付けて一時フォルダに書く。残したいときは記入するか「参照」で選ぶ。
+出力先を空欄にすると、`--html auto` と同じ名前で一時フォルダに書く。フォルダを選んだ時点で実際のパスが画面に出る。
+残したいときは記入するか「参照」で選ぶ（保存ダイアログにも同じ名前が入っている）。
 窓がするのは走査の開始だけで、読むものは `--html` が書くのと同じ HTML レポート。
 ドラッグ&ドロップには対応しない（`tkdnd` という外部パッケージが要るため）。
 

@@ -26,6 +26,10 @@ This guide applies to all of them.
 | terminal (default) or `-o PATH` | what the examples here show |
 | `--csv PATH` | one line per file, for taking stock |
 | `--html PATH` | one file to open in a browser: sort and search the list, click a row for the detail below. The quickest way through a folder with many files |
+
+The `--html` table draws 500 rows at a time, so a folder with thousands of files
+stays responsive; "show more" adds the next 500. The browser's own Ctrl+F only
+sees drawn rows, so search the whole set with the box on the page.
 | `--json` | for feeding another tool |
 
 ## 2. Line by line

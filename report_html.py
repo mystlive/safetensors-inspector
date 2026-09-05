@@ -78,6 +78,12 @@ dd div { word-break: break-word; }
 dd div.sub { color: var(--dim); }
 dd .prefix { color: var(--dim); }
 .empty { padding: 40px 0; color: var(--dim); text-align: center; }
+tr.more > td { text-align: center; padding: 14px 0; }
+button.more {
+  background: var(--panel); color: var(--fg); border: 1px solid var(--line);
+  border-radius: 4px; padding: 7px 18px; font: inherit; cursor: pointer;
+}
+button.more:hover { border-color: var(--accent); color: var(--accent); }
 """
 
 JS = """
@@ -90,6 +96,13 @@ JS = """
   var count = document.getElementById('count');
   var sortKey = null, sortDir = 1;
   var open = {};
+
+  // Rendering cost is proportional to DOM nodes, so a folder with thousands of
+  // files is only drawn a chunk at a time. Measured: 8000 rows drawn at once
+  // cost ~2s to load and ~1s per keystroke in the search box; the payload
+  // itself parses in ~100ms, so the table is what has to be held down.
+  var CHUNK = page.chunk || 500;
+  var shown = CHUNK;
 
   var kinds = [];
   rows.forEach(function (r) {
@@ -172,7 +185,7 @@ JS = """
       return;
     }
 
-    list.forEach(function (r) {
+    list.slice(0, shown).forEach(function (r) {
       var tr = el('tr', 'item' + (open[r.id] ? ' open' : ''));
       cols.forEach(function (c, i) {
         var cls = c.numeric ? 'num' : (i === 0 ? 'name' : 'dim');
@@ -202,6 +215,18 @@ JS = """
         tbody.appendChild(dtr);
       }
     });
+
+    if (list.length > shown) {
+      var mtr = el('tr', 'more');
+      var mtd = el('td');
+      mtd.colSpan = cols.length;
+      var btn = el('button', 'more',
+                   ui.show_more.replace('{n}', list.length - shown));
+      btn.addEventListener('click', function () { shown += CHUNK; render(); });
+      mtd.appendChild(btn);
+      mtr.appendChild(mtd);
+      tbody.appendChild(mtr);
+    }
   }
 
   var head = document.getElementById('head');
@@ -211,13 +236,20 @@ JS = """
       if (sortKey === c.key) { sortDir = -sortDir; } else { sortKey = c.key; sortDir = 1; }
       head.querySelectorAll('.arrow').forEach(function (a) { a.remove(); });
       th.appendChild(el('span', 'arrow', sortDir > 0 ? ' \\u25b2' : ' \\u25bc'));
+      shown = CHUNK;
       render();
     });
     head.appendChild(th);
   });
 
-  q.addEventListener('input', render);
-  kindSel.addEventListener('change', render);
+  // Typing redraws the table, so wait for a pause rather than redrawing on
+  // every keystroke.
+  var typing = null;
+  q.addEventListener('input', function () {
+    clearTimeout(typing);
+    typing = setTimeout(function () { shown = CHUNK; render(); }, 150);
+  });
+  kindSel.addEventListener('change', function () { shown = CHUNK; render(); });
   render();
 })();
 """

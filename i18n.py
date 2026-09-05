@@ -125,6 +125,7 @@ LABELS = {
         "html_search": "search file name, path or base",
         "html_all_kinds": "all types",
         "html_showing": "{n} of {total}",
+        "html_show_more": "show more ({n} left)",
         "html_no_match": "nothing matches",
 
         "help_desc": "Identify what a safetensors file is: full model, LoRA, VAE or text encoder, and which base it needs",
@@ -244,6 +245,7 @@ LABELS = {
         "html_search": "ファイル名・パス・ベースで検索",
         "html_all_kinds": "種別すべて",
         "html_showing": "{n} / {total} 件",
+        "html_show_more": "続きを表示（残り {n} 件）",
         "html_no_match": "該当なし",
 
         "help_desc": "safetensors の素性（本体か LoRA か、必要なベースは何か）を判別する",

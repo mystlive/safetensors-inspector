@@ -81,6 +81,9 @@ python stinspect.py path/to/models -r -o report.txt
 # a spreadsheet of everything you own
 python stinspect.py path/to/models -r --csv inventory.csv
 
+# one HTML file you can open in a browser: sort, search, click a row for the full report
+python stinspect.py path/to/models -r --html report.html
+
 # Japanese output
 python stinspect.py path/to/models --lang ja
 ```
@@ -90,6 +93,7 @@ python stinspect.py path/to/models --lang ja
 | `-r`, `--recursive` | walk folders recursively |
 | `-o PATH` | write the report to a file (UTF-8 with BOM) |
 | `--csv PATH` | write a summary table (UTF-8 with BOM, opens in Excel) |
+| `--html PATH` | write a self-contained HTML report: a sortable, searchable table whose rows open into the full report |
 | `--meta` | print all metadata instead of the highlights |
 | `--keys` | also print sample key names, for investigating unidentified files |
 | `--json` | emit JSON |

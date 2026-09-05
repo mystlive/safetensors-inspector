@@ -105,6 +105,7 @@ LABELS = {
         "skip": "[skip] not found: {path}",
         "wrote": "Wrote results to: {path}",
         "wrote_csv": "Wrote CSV to: {path}",
+        "wrote_html": "Wrote HTML report to: {path}",
 
         "err_short": "file is under 8 bytes; not a safetensors",
         "err_zero": "header length is 0",
@@ -118,6 +119,14 @@ LABELS = {
         "csv_tensors": "tensors", "csv_params": "params", "csv_path": "path",
         "csv_error": "error",
 
+        # HTML report. "showing" keeps its placeholders: the browser fills them
+        # in as the list is filtered.
+        "html_title": "safetensors inspector",
+        "html_search": "search file name, path or base",
+        "html_all_kinds": "all types",
+        "html_showing": "{n} of {total}",
+        "html_no_match": "nothing matches",
+
         "help_desc": "Identify what a safetensors file is: full model, LoRA, VAE or text encoder, and which base it needs",
         "help_targets": "files or folders (default: current folder)",
         "help_recursive": "walk folders recursively",
@@ -125,6 +134,7 @@ LABELS = {
         "help_keys": "also print sample key names",
         "help_json": "emit JSON",
         "help_csv": "write a summary CSV (UTF-8 with BOM)",
+        "help_html": "write a self-contained HTML report: a sortable, searchable table whose rows open into the full report",
         "help_out": "write results to a file (UTF-8 with BOM, so it opens cleanly in Notepad and Excel)",
         "help_unresolved": "write the files it could not identify to a file, with what is needed to add rules for them",
         "help_no_summary": "skip the summary at the end of a multi-file run",
@@ -214,6 +224,7 @@ LABELS = {
         "skip": "[skip] 見つからない: {path}",
         "wrote": "結果を書き出した: {path}",
         "wrote_csv": "CSV を書き出した: {path}",
+        "wrote_html": "HTML レポートを書き出した: {path}",
 
         "err_short": "ファイルが 8 バイト未満。safetensors ではない",
         "err_zero": "ヘッダ長が 0",
@@ -227,6 +238,14 @@ LABELS = {
         "csv_tensors": "tensors", "csv_params": "params", "csv_path": "パス",
         "csv_error": "エラー",
 
+        # HTML レポート。showing はプレースホルダのまま渡す（絞り込みに応じて
+        # ブラウザ側が埋める）
+        "html_title": "safetensors inspector",
+        "html_search": "ファイル名・パス・ベースで検索",
+        "html_all_kinds": "種別すべて",
+        "html_showing": "{n} / {total} 件",
+        "html_no_match": "該当なし",
+
         "help_desc": "safetensors の素性（本体か LoRA か、必要なベースは何か）を判別する",
         "help_targets": "ファイルまたはフォルダ（省略時はカレントフォルダ）",
         "help_recursive": "フォルダを再帰的に走査",
@@ -234,6 +253,7 @@ LABELS = {
         "help_keys": "キー名のサンプルも出す",
         "help_json": "JSON で出力",
         "help_csv": "一覧を CSV に書き出す（UTF-8 BOM 付き）",
+        "help_html": "自己完結の HTML レポートを書き出す（並べ替え・検索できる一覧。行を開くと詳細）",
         "help_out": "結果をファイルに書き出す（UTF-8 BOM 付き。メモ帳や Excel でそのまま開ける）",
         "help_unresolved": "判別できなかったファイルを、ルール追加に必要な情報つきで書き出す",
         "help_no_summary": "複数ファイル走査時の末尾サマリを出さない",

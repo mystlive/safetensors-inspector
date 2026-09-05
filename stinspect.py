@@ -36,6 +36,7 @@ import unicodedata
 from collections import Counter, defaultdict
 from pathlib import Path
 
+import report_html
 import rules
 from i18n import L, tr
 
@@ -623,90 +624,103 @@ def extract_top_tags(meta, top=15):
     return counter.most_common(top)
 
 
-def print_report(r, args, out=sys.stdout):
-    lang = args.lang
-    w = out.write
-    pad = 12
+def _line(text, prefix="", wrap=False):
+    """One line of a report row.
 
-    def row(label_key, text):
-        w(f"  {pad_to(L(lang, label_key), pad)}{text}\n")
+    `prefix` is a label that stays on the first visual line ("Caveat: "); `wrap`
+    marks prose long enough to need folding. Folding itself belongs to whoever
+    renders the line - a terminal needs it, a browser does not.
+    """
+    return {"prefix": prefix, "text": text, "wrap": wrap}
 
-    def cont(text):
-        w(f"  {' ' * pad}{text}\n")
 
-    w("\n" + "=" * 78 + "\n")
-    w(f"{r['name']}\n")
-    w(f"  {r['path']}\n")
+def build_view(r, lang, full_meta=False, show_keys=False):
+    """Assemble everything a report shows, before any formatting.
+
+    Both the text report and the HTML report render this, so the two cannot
+    drift apart when a field is added. Nothing here knows about column widths,
+    line breaks or markup.
+    """
+    view = {"name": r["name"], "path": r["path"], "error": None,
+            "stats": "", "head_rows": [], "size_warning": None, "rows": []}
+
+    def add(rows, label_key, first, *rest):
+        rows.append({"key": label_key, "label": L(lang, label_key),
+                     "lines": [first, *rest]})
+
     if r["error"]:
         msg = r["error"].message(lang) if isinstance(r["error"], HeaderError) else str(r["error"])
-        w(f"  {L(lang, 'unreadable')} {msg}\n")
-        return
+        view["error"] = f"{L(lang, 'unreadable')} {msg}"
+        return view
 
     dt = ", ".join(f"{k}:{v}" for k, v in sorted(r["dtypes"].items(), key=lambda x: -x[1]))
-    w(f"  {human_size(r['size_bytes'])} / {r['n_tensors']} tensors / "
-      f"{human_count(r['n_params'])} params / {dt}\n")
+    view["stats"] = (f"{human_size(r['size_bytes'])} / {r['n_tensors']} tensors / "
+                     f"{human_count(r['n_params'])} params / {dt}")
     if r.get("quant"):
-        row("label_quant", tr(r["quant"]["name"], lang)
-            + verified_mark(lang, r["quant"]["verified"]))
+        add(view["head_rows"], "label_quant",
+            _line(tr(r["quant"]["name"], lang) + verified_mark(lang, r["quant"]["verified"])))
     if not r["size_ok"]:
-        w("  " + L(lang, "size_mismatch",
-                   expected=r["size_expected"], actual=r["size_bytes"]) + "\n")
-    w("-" * 78 + "\n")
+        view["size_warning"] = L(lang, "size_mismatch",
+                                 expected=r["size_expected"], actual=r["size_bytes"])
+
+    rows = view["rows"]
 
     # Type
     if r["dialect"]:
         d = r["dialect"]
-        row("label_type", tr(d["name"], lang) + verified_mark(lang, d["verified"]))
+        lines = [_line(tr(d["name"], lang) + verified_mark(lang, d["verified"]))]
         note = tr(d["note"], lang)
         if note:
-            cont(wrap_note(note, lang))
+            lines.append(_line(note, wrap=True))
+        add(rows, "label_type", *lines)
     else:
-        row("label_type", L(lang, f"kind_{r['kind']}"))
+        add(rows, "label_type", _line(L(lang, f"kind_{r['kind']}")))
 
     # Base model
     strong = [a for a in r["architectures"] if a["score"] >= MIN_ARCH_SCORE]
     weak = [a for a in r["architectures"] if a["score"] < MIN_ARCH_SCORE]
     if strong:
         top = strong[0]
-        row("label_base", f"{tr(top['name'], lang)}{verified_mark(lang, top['verified'])}"
-                          f"   {L(lang, 'confidence')} {confidence(lang, top['score'])}")
+        lines = [_line(f"{tr(top['name'], lang)}{verified_mark(lang, top['verified'])}"
+                       f"   {L(lang, 'confidence')} {confidence(lang, top['score'])}")]
         seen = set()
         for item in top["evidence"]:
             s = evidence_text(item, lang)
             if s in seen:
                 continue
             seen.add(s)
-            cont(f"{L(lang, 'label_evidence')}: {s}")
+            lines.append(_line(f"{L(lang, 'label_evidence')}: {s}"))
             if len(seen) >= 4:
                 break
         note = tr(top["note"], lang)
         if note:
-            head = f"{L(lang, 'label_caveat')}: "
-            cont(head + wrap_note(note, lang,
-                                  indent=" " * (pad + 2 + disp_width(head))))
+            lines.append(_line(note, prefix=f"{L(lang, 'label_caveat')}: ", wrap=True))
+        add(rows, "label_base", *lines)
         if len(strong) > 1:
-            row("label_alt", " / ".join(
-                f"{tr(a['name'], lang)} ({a['score']})" for a in strong[1:]))
+            add(rows, "label_alt", _line(" / ".join(
+                f"{tr(a['name'], lang)} ({a['score']})" for a in strong[1:])))
     elif r["context_base"]:
         cb = r["context_base"]
-        row("label_base", f"{tr(cb['name'], lang)}{verified_mark(lang, cb['verified'])}"
-                          f"   {L(lang, 'confidence')} {L(lang, 'conf_high')}")
-        cont(f"{L(lang, 'label_evidence')}: cross-attention = {cb['dim']}")
+        add(rows, "label_base",
+            _line(f"{tr(cb['name'], lang)}{verified_mark(lang, cb['verified'])}"
+                  f"   {L(lang, 'confidence')} {L(lang, 'conf_high')}"),
+            _line(f"{L(lang, 'label_evidence')}: cross-attention = {cb['dim']}"))
     else:
-        row("label_base", L(lang, "base_unknown"))
+        lines = [_line(L(lang, "base_unknown"))]
         if weak:
-            cont(f"{L(lang, 'base_weak')}: " + " / ".join(
+            lines.append(_line(f"{L(lang, 'base_weak')}: " + " / ".join(
                 f"{tr(a['name'], lang)} ({a['score']}: {evidence_text(a['evidence'][0], lang)})"
-                for a in weak[:2]))
-        cont(L(lang, "base_hint"))
+                for a in weak[:2])))
+        lines.append(_line(L(lang, "base_hint")))
+        add(rows, "label_base", *lines)
 
     # Contents
     if r["components"]:
-        row("label_parts", " / ".join(
+        add(rows, "label_parts", _line(" / ".join(
             f"{tr(c['name'], lang)}{verified_mark(lang, c['verified'])}"
-            for c in r["components"][:5]))
+            for c in r["components"][:5])))
     if r["lora_targets"]:
-        row("label_targets", " + ".join(L(lang, t) for t in r["lora_targets"]))
+        add(rows, "label_targets", _line(" + ".join(L(lang, t) for t in r["lora_targets"])))
 
     # rank / alpha
     ri = r["rank_info"]
@@ -727,54 +741,94 @@ def print_report(r, args, out=sys.stdout):
                 detail = ", ".join(f"{k:g} ({L(lang, 'layers', n=v)})" for k, v in as_[:4])
                 parts.append(L(lang, "alpha_mixed", detail=detail))
         if parts:
-            row("label_strength", "   ".join(parts))
+            add(rows, "label_strength", _line("   ".join(parts)))
 
     if r["naming_mix"]:
-        row("label_dialect", L(lang, "naming_mix_1"))
-        cont(L(lang, "naming_mix_2"))
+        add(rows, "label_dialect", _line(L(lang, "naming_mix_1")),
+            _line(L(lang, "naming_mix_2")))
 
     # Metadata
     meta = r["metadata"]
     if meta:
         shown = [(label, key, meta[key]) for key, label in rules.META_HIGHLIGHT if key in meta]
         rest = [k for k in meta if k not in {s[1] for s in shown}]
-        if not shown and not args.meta:
-            row("label_metadata", L(lang, "thin_metadata",
-                                    n=len(meta), keys=", ".join(sorted(rest)[:6])))
+        if not shown and not full_meta:
+            add(rows, "label_metadata", _line(L(lang, "thin_metadata",
+                                                n=len(meta),
+                                                keys=", ".join(sorted(rest)[:6]))))
         else:
             first, *others = shown or [(None, None, None)]
             if first[0] is not None:
-                row("label_metadata",
-                    f"{tr(first[0], lang)}: {fmt_meta_value(lang, first[1], first[2], args.meta)}")
+                lines = [_line(f"{tr(first[0], lang)}: "
+                               f"{fmt_meta_value(lang, first[1], first[2], full_meta)}")]
             else:
-                row("label_metadata", "")
+                lines = [_line("")]
             for label, key, v in others:
-                cont(f"{tr(label, lang)}: {fmt_meta_value(lang, key, v, args.meta)}")
-            if args.meta:
+                lines.append(_line(f"{tr(label, lang)}: "
+                                   f"{fmt_meta_value(lang, key, v, full_meta)}"))
+            if full_meta:
                 for k in sorted(rest):
-                    cont(f"{k}: {fmt_meta_value(lang, k, meta[k], True)}")
+                    lines.append(_line(f"{k}: {fmt_meta_value(lang, k, meta[k], True)}"))
             elif rest:
-                cont(L(lang, "more_items", n=len(rest), keys=", ".join(sorted(rest)[:6]),
-                       ellipsis=" ..." if len(rest) > 6 else ""))
+                lines.append(_line(L(lang, "more_items", n=len(rest),
+                                     keys=", ".join(sorted(rest)[:6]),
+                                     ellipsis=" ..." if len(rest) > 6 else "")))
+            add(rows, "label_metadata", *lines)
         tags = extract_top_tags(meta)
         if tags:
-            row("label_triggers", ", ".join(f"{t} ({c})" for t, c in tags))
+            add(rows, "label_triggers",
+                _line(", ".join(f"{t} ({c})" for t, c in tags)))
     else:
-        row("label_metadata", L(lang, "no_metadata"))
+        add(rows, "label_metadata", _line(L(lang, "no_metadata")))
 
     # Placement
     comfy_dir, how = rules.PLACEMENT.get(r["kind"], rules.PLACEMENT["unknown"])
     if r["kind"] == "unet_only" and strong:
         comfy_dir = "models/" + strong[0]["comfy_dir"]
-    row("label_placement", f"ComfyUI: {tr(comfy_dir, lang)}")
+    lines = [_line(f"ComfyUI: {tr(comfy_dir, lang)}")]
     how = tr(how, lang)
     if how:
-        cont(how)
+        lines.append(_line(how))
+    add(rows, "label_placement", *lines)
 
-    if args.keys and r["sample_keys"]:
-        row("label_keys", r["sample_keys"][0])
-        for k in r["sample_keys"][1:]:
-            cont(k)
+    if show_keys and r["sample_keys"]:
+        add(rows, "label_keys", *[_line(k) for k in r["sample_keys"]])
+
+    return view
+
+
+def print_report(r, args, out=sys.stdout):
+    view = build_view(r, args.lang, full_meta=args.meta, show_keys=args.keys)
+    lang = args.lang
+    w = out.write
+    pad = 12
+
+    def render(line):
+        prefix, text = line["prefix"], line["text"]
+        if line["wrap"]:
+            text = wrap_note(text, lang,
+                             indent=" " * (pad + 2 + disp_width(prefix)))
+        return prefix + text
+
+    def emit(rows):
+        for entry in rows:
+            for i, line in enumerate(entry["lines"]):
+                head = pad_to(entry["label"], pad) if i == 0 else " " * pad
+                w(f"  {head}{render(line)}\n")
+
+    w("\n" + "=" * 78 + "\n")
+    w(f"{view['name']}\n")
+    w(f"  {view['path']}\n")
+    if view["error"]:
+        w(f"  {view['error']}\n")
+        return
+
+    w(f"  {view['stats']}\n")
+    emit(view["head_rows"])
+    if view["size_warning"]:
+        w("  " + view["size_warning"] + "\n")
+    w("-" * 78 + "\n")
+    emit(view["rows"])
 
 
 def base_of(r, lang):
@@ -901,6 +955,34 @@ def to_jsonable(r, lang):
     return d
 
 
+def summary_fields(r, lang):
+    """The one-line-per-file view: type, base, confidence, rank.
+
+    Shared by the CSV and the HTML table so a file cannot be summarised one way
+    in one and another way in the other.
+    """
+    strong = [a for a in r["architectures"] if a["score"] >= MIN_ARCH_SCORE]
+    if strong:
+        base, conf = tr(strong[0]["name"], lang), confidence(lang, strong[0]["score"])
+    elif r["context_base"]:
+        base, conf = tr(r["context_base"]["name"], lang), L(lang, "conf_high")
+    else:
+        base = conf = ""
+    rank = ""
+    if r["rank_info"] and r["rank_info"]["ranks"]:
+        rs = sorted(r["rank_info"]["ranks"].items(), key=lambda x: -x[1])
+        rank = str(rs[0][0]) if len(rs) == 1 else f"{rs[0][0]}+"
+    kind = tr(r["dialect"]["name"], lang) if r["dialect"] else L(lang, f"kind_{r['kind']}")
+    return kind, base, conf, rank
+
+
+def error_text(r, lang):
+    if not r["error"]:
+        return None
+    return (r["error"].message(lang) if isinstance(r["error"], HeaderError)
+            else str(r["error"]))
+
+
 def write_csv(results, path, lang):
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         wr = csv.writer(f)
@@ -909,24 +991,82 @@ def write_csv(results, path, lang):
                       "csv_size", "csv_tensors", "csv_params", "csv_path", "csv_error")])
         for r in results:
             if r["error"]:
-                msg = r["error"].message(lang) if isinstance(r["error"], HeaderError) else str(r["error"])
-                wr.writerow([r["name"], "", "", "", "", "", "", "", r["path"], msg])
+                wr.writerow([r["name"], "", "", "", "", "", "", "", r["path"],
+                             error_text(r, lang)])
                 continue
-            strong = [a for a in r["architectures"] if a["score"] >= MIN_ARCH_SCORE]
-            if strong:
-                base, conf = tr(strong[0]["name"], lang), confidence(lang, strong[0]["score"])
-            elif r["context_base"]:
-                base, conf = tr(r["context_base"]["name"], lang), L(lang, "conf_high")
-            else:
-                base = conf = ""
-            rank = ""
-            if r["rank_info"] and r["rank_info"]["ranks"]:
-                rs = sorted(r["rank_info"]["ranks"].items(), key=lambda x: -x[1])
-                rank = str(rs[0][0]) if len(rs) == 1 else f"{rs[0][0]}+"
-            kind = tr(r["dialect"]["name"], lang) if r["dialect"] else L(lang, f"kind_{r['kind']}")
+            kind, base, conf, rank = summary_fields(r, lang)
             wr.writerow([r["name"], kind, base, conf, rank,
                          human_size(r["size_bytes"]), r["n_tensors"],
                          human_count(r["n_params"]), r["path"], ""])
+
+
+HTML_COLUMNS = (
+    # key; label key (shared with the CSV so both name a column the same way);
+    # numeric (sorts by value, not text); clip (one line with an ellipsis in the
+    # table - type and base are explanatory sentences, and letting them wrap
+    # makes every row several lines tall. The full text is in the detail panel).
+    ("name", "csv_name", False, False),
+    ("kind", "csv_kind", False, True),
+    ("base", "csv_base", False, True),
+    ("conf", "csv_conf", False, False),
+    ("rank", "csv_rank", False, False),
+    ("size", "csv_size", True, False),
+    ("tensors", "csv_tensors", True, False),
+    ("params", "csv_params", True, False),
+)
+
+
+def build_page(results, lang, full_meta=False, show_keys=False):
+    """Everything report_html.py needs, with every string already in `lang`.
+
+    Details come from build_view, the same structure the text report renders.
+    """
+    rows = []
+    for i, r in enumerate(results):
+        view = build_view(r, lang, full_meta=full_meta, show_keys=show_keys)
+        if r["error"]:
+            kind = base = conf = rank = tensors = params = ""
+            sort = {"size": r["size_bytes"], "tensors": 0, "params": 0}
+        else:
+            kind, base, conf, rank = summary_fields(r, lang)
+            tensors = str(r["n_tensors"])
+            params = human_count(r["n_params"])
+            sort = {"size": r["size_bytes"], "tensors": r["n_tensors"],
+                    "params": r["n_params"]}
+        rows.append({
+            "id": i,
+            "name": r["name"],
+            "path": r["path"],
+            "kind": kind, "base": base, "conf": conf, "rank": rank,
+            "size": human_size(r["size_bytes"]),
+            "tensors": tensors, "params": params,
+            "sort": sort,
+            "error": view["error"] or "",
+            "detail": {
+                "stats": view["stats"],
+                "size_warning": view["size_warning"] or "",
+                # The quantisation row sits above the rule in the text report;
+                # in a browser there is no rule, so it simply leads the list.
+                "rows": view["head_rows"] + view["rows"],
+            },
+            "haystack": " ".join((r["name"], r["path"], kind, base)).lower(),
+        })
+
+    return {
+        "lang": lang,
+        "title": L(lang, "html_title"),
+        "ui": {
+            "search": L(lang, "html_search"),
+            "all_kinds": L(lang, "html_all_kinds"),
+            # Left unformatted on purpose: the count changes as you filter, so
+            # the browser fills in {n} and {total}.
+            "showing": L(lang, "html_showing"),
+            "no_match": L(lang, "html_no_match"),
+        },
+        "columns": [{"key": k, "label": L(lang, lk), "numeric": num, "clip": clip}
+                    for k, lk, num, clip in HTML_COLUMNS],
+        "rows": rows,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -961,6 +1101,7 @@ def main():
     ap.add_argument("--keys", action="store_true", help=L(lang, "help_keys"))
     ap.add_argument("--json", action="store_true", help=L(lang, "help_json"))
     ap.add_argument("--csv", metavar="PATH", help=L(lang, "help_csv"))
+    ap.add_argument("--html", metavar="PATH", help=L(lang, "help_html"))
     ap.add_argument("-o", "--out", metavar="PATH", help=L(lang, "help_out"))
     ap.add_argument("--unresolved", metavar="PATH", help=L(lang, "help_unresolved"))
     ap.add_argument("--no-summary", action="store_true", help=L(lang, "help_no_summary"))
@@ -1003,6 +1144,12 @@ def main():
     if args.csv:
         write_csv(results, args.csv, args.lang)
         print(L(args.lang, "wrote_csv", path=args.csv))
+
+    if args.html:
+        report_html.write_html(
+            build_page(results, args.lang, full_meta=args.meta, show_keys=args.keys),
+            args.html)
+        print(L(args.lang, "wrote_html", path=args.html))
 
     if args.unresolved:
         n = write_unresolved(results, args.unresolved, args.lang)

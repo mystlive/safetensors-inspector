@@ -36,6 +36,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
+import report_html  # noqa: E402
 import rules       # noqa: E402
 import stinspect   # noqa: E402
 import verify_rules  # noqa: E402
@@ -113,7 +114,7 @@ check(not (listed - targets), f"documented but not a target: {sorted(listed - ta
 section("message keys used by the code exist in both languages")
 src = (ROOT / "stinspect.py").read_text(encoding="utf-8")
 used = set(re.findall(r'L\((?:args\.)?lang,\s*"([a-z0-9_]+)"', src))
-used |= set(re.findall(r'row\("([a-z0-9_]+)"', src))
+used |= set(re.findall(r'add\([^,]+,\s*"([a-z0-9_]+)"', src))
 used |= {f"kind_{k}" for k in ("checkpoint", "unet_only", "backbone_vae", "text_encoder",
                                "vae", "controlnet", "embedding", "unknown")}
 used |= {f"verified_{v}" for v in ("measured", "derived", "unverified")}
@@ -247,6 +248,8 @@ for label, p in cases:
 for label, fn in (("summary", lambda: stinspect.print_summary(results, Args(), out=Sink())),
                   ("unresolved report", lambda: stinspect.write_unresolved(results, tmp / "u.txt", "en")),
                   ("csv", lambda: stinspect.write_csv(results, tmp / "x.csv", "en")),
+                  ("html", lambda: report_html.write_html(
+                      stinspect.build_page(results, "en"), tmp / "r.html")),
                   ("json (ja)", lambda: json.dumps([stinspect.to_jsonable(r, "ja") for r in results],
                                                    ensure_ascii=False))):
     try:
@@ -255,6 +258,35 @@ for label, fn in (("summary", lambda: stinspect.print_summary(results, Args(), o
     except Exception as e:
         fails.append(f"{label}: {type(e).__name__}: {e}")
         print(f"  FAIL  {label}: {type(e).__name__}: {e}")
+
+# ---------------------------------------------------------------------------
+section("the HTML report escapes metadata that carries markup")
+# ComfyUI writes its whole prompt and workflow JSON into __metadata__, so a
+# report can legitimately contain angle brackets. A `</script>` in there would
+# end the embedded payload; anything after it would be parsed as markup.
+HOSTILE = "</script><img src=x onerror=alert(1)><!-- & -->"
+hp = write_st("hostile.safetensors",
+              {"__metadata__": {"note": HOSTILE},
+               "x": {"dtype": "F32", "shape": [1], "data_offsets": [0, 4]}},
+              b"\0" * 4)
+hr = stinspect.analyze(hp)
+html = report_html.render(stinspect.build_page([hr], "en", full_meta=True))
+
+check(html.count("</script") == 2,
+      f"exactly the report's own two script elements close ({html.count('</script')} found)")
+check(HOSTILE not in html, "the raw markup is nowhere in the document")
+check("<img" not in html, "no img element was smuggled in")
+
+m = re.search(r'<script type="application/json" id="stinspect-data">(.*?)</script>',
+              html, re.S)
+check(m is not None, "the payload element is intact")
+if m:
+    try:
+        payload = json.loads(m.group(1))
+        text = json.dumps(payload, ensure_ascii=False)
+        check(HOSTILE in text, "the value survives escaping unchanged")
+    except json.JSONDecodeError as e:
+        check(False, f"the payload is not valid JSON: {e}")
 
 # ---------------------------------------------------------------------------
 section("internal documentation links resolve")

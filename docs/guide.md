@@ -17,6 +17,17 @@ Those three get the file usable. For a LoRA, add **Strength**.
 The rest (Contents, Dialect, Quant, Metadata) is for working out why something
 is not loading.
 
+### Same content, four shapes
+
+This guide applies to all of them.
+
+| Output | Shape |
+| --- | --- |
+| terminal (default) or `-o PATH` | what the examples here show |
+| `--csv PATH` | one line per file, for taking stock |
+| `--html PATH` | one file to open in a browser: sort and search the list, click a row for the detail below. The quickest way through a folder with many files |
+| `--json` | for feeding another tool |
+
 ## 2. Line by line
 
 ### Type

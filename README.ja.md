@@ -74,6 +74,9 @@ python stinspect.py path/to/models -r --lang ja -o report.txt
 
 # 所持モデルの一覧を CSV に
 python stinspect.py path/to/models -r --lang ja --csv inventory.csv
+
+# ブラウザで開ける HTML 1 ファイルに（並べ替え・検索でき、行を開くと詳細が出る）
+python stinspect.py path/to/models -r --lang ja --html report.html
 ```
 
 | オプション | 動作 |
@@ -81,6 +84,7 @@ python stinspect.py path/to/models -r --lang ja --csv inventory.csv
 | `-r`, `--recursive` | フォルダを再帰的に走査 |
 | `-o PATH` | レポートをファイルに書き出す（UTF-8 BOM 付き） |
 | `--csv PATH` | 一覧表を CSV に（UTF-8 BOM 付き。Excel でそのまま開ける） |
+| `--html PATH` | 自己完結の HTML レポートを書き出す（並べ替え・検索できる一覧。行を開くと詳細） |
 | `--meta` | メタデータを省略せず全部出す |
 | `--keys` | キー名のサンプルも出す（判別できなかったファイルの調査用） |
 | `--json` | JSON で出力 |

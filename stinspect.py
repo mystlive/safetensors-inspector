@@ -514,6 +514,9 @@ def analyze(path: Path):
         naming_mix=detect_naming_mix(modules),
         kind=kind,
         sample_keys=sorted(tensors)[:12],
+        # Kept for files that could not be identified: the top-level key names
+        # are the first thing you need in order to write a rule for one.
+        key_prefixes=Counter(k.split(".")[0] for k in tensors).most_common(8),
     )
     return result
 
@@ -761,6 +764,107 @@ def print_report(r, args, out=sys.stdout):
             cont(k)
 
 
+def base_of(r, lang):
+    """The base a file was identified as, or None."""
+    strong = [a for a in r.get("architectures", []) if a["score"] >= MIN_ARCH_SCORE]
+    if strong:
+        return tr(strong[0]["name"], lang)
+    if r.get("context_base"):
+        return tr(r["context_base"]["name"], lang)
+    return None
+
+
+def unresolved_files(results):
+    """Files whose base could not be established - the ones worth a new rule.
+
+    Readable errors (a truncated download) are not in here; those are a
+    different problem and are reported per file.
+    """
+    out = []
+    for r in results:
+        if r["error"]:
+            continue
+        if base_of(r, "en") is None:
+            out.append(r)
+    return out
+
+
+def print_summary(results, args, out=sys.stdout):
+    lang = args.lang
+    w = out.write
+    ok = [r for r in results if not r["error"]]
+    bad = [r for r in results if r["error"]]
+
+    w("\n" + "=" * 78 + "\n")
+    w(L(lang, "summary_title", n=len(results)) + "\n")
+
+    kinds = Counter()
+    for r in ok:
+        kinds[tr(r["dialect"]["name"], lang) if r["dialect"]
+              else L(lang, f"kind_{r['kind']}")] += 1
+    if kinds:
+        w("\n" + L(lang, "summary_by_type") + "\n")
+        for name, n in kinds.most_common():
+            w(f"  {n:>4}  {name}\n")
+
+    bases = Counter()
+    for r in ok:
+        b = base_of(r, lang)
+        bases[b if b else L(lang, "base_unknown")] += 1
+    if bases:
+        w("\n" + L(lang, "summary_by_base") + "\n")
+        for name, n in bases.most_common():
+            w(f"  {n:>4}  {name}\n")
+
+    if bad:
+        w("\n" + L(lang, "summary_damaged", n=len(bad)) + "\n")
+        for r in bad:
+            msg = r["error"].message(lang) if isinstance(r["error"], HeaderError) else str(r["error"])
+            w(f"  {r['name']}: {msg}\n")
+
+    unres = unresolved_files(ok)
+    if unres:
+        w("\n" + L(lang, "summary_unresolved", n=len(unres)) + "\n")
+        for r in unres:
+            w(f"  {r['name']}\n")
+            pref = ", ".join(f"{k} ({n})" for k, n in r.get("key_prefixes", []))
+            w(f"      {L(lang, 'unresolved_keys')}: {pref}\n")
+        w("\n  " + L(lang, "unresolved_hint_1") + "\n")
+        w("  " + L(lang, "unresolved_hint_2") + "\n")
+        w("  " + wrap_note(L(lang, "unresolved_hint_3"), lang, width=70, indent="  ") + "\n")
+
+
+def write_unresolved(results, path, lang):
+    """Write the details needed to add rules for the files that stumped it."""
+    unres = unresolved_files([r for r in results if not r["error"]])
+    with open(path, "w", encoding="utf-8-sig", newline="\n") as f:
+        f.write(L(lang, "unresolved_file_title", n=len(unres)) + "\n")
+        f.write(L(lang, "unresolved_file_intro") + "\n\n")
+        for r in unres:
+            f.write("=" * 78 + "\n")
+            f.write(f"{r['name']}\n")
+            f.write(f"  {r['path']}\n")
+            f.write(f"  {human_size(r['size_bytes'])} / {r['n_tensors']} tensors / "
+                    f"{human_count(r['n_params'])} params / "
+                    f"{', '.join(f'{k}:{v}' for k, v in sorted(r['dtypes'].items(), key=lambda x: -x[1]))}\n")
+            f.write(f"  {L(lang, 'unresolved_keys')}: "
+                    + ", ".join(f"{k} ({n})" for k, n in r.get("key_prefixes", [])) + "\n")
+            comps = [tr(c["name"], lang) for c in r.get("components", [])]
+            f.write(f"  {L(lang, 'label_parts')}: {' / '.join(comps) if comps else '-'}\n")
+            if r.get("metadata"):
+                f.write(f"  {L(lang, 'label_metadata')}: "
+                        + ", ".join(sorted(r["metadata"])[:10]) + "\n")
+            weak = [a for a in r.get("architectures", []) if a["score"] < MIN_ARCH_SCORE]
+            if weak:
+                f.write(f"  {L(lang, 'base_weak')}: "
+                        + " / ".join(f"{tr(a['name'], lang)} ({a['score']})" for a in weak[:3]) + "\n")
+            f.write(f"  {L(lang, 'label_keys')}:\n")
+            for k in r.get("sample_keys", []):
+                f.write(f"      {k}\n")
+            f.write("\n")
+    return len(unres)
+
+
 def to_jsonable(r, lang):
     """Resolve bilingual fields so the JSON output is plain strings."""
     d = dict(r)
@@ -845,6 +949,8 @@ def main():
     ap.add_argument("--json", action="store_true", help=L(lang, "help_json"))
     ap.add_argument("--csv", metavar="PATH", help=L(lang, "help_csv"))
     ap.add_argument("-o", "--out", metavar="PATH", help=L(lang, "help_out"))
+    ap.add_argument("--unresolved", metavar="PATH", help=L(lang, "help_unresolved"))
+    ap.add_argument("--no-summary", action="store_true", help=L(lang, "help_no_summary"))
     ap.add_argument("--lang", choices=("en", "ja"), default="en", help=L(lang, "help_lang"))
     args = ap.parse_args()
 
@@ -870,8 +976,12 @@ def main():
         else:
             for r in results:
                 print_report(r, args, out=stream)
-            stream.write("\n" + "=" * 78 + "\n")
-            stream.write(L(args.lang, "summary", n=len(results)) + "\n")
+            # A single file already says everything in its own report.
+            if len(results) > 1 and not args.no_summary:
+                print_summary(results, args, out=stream)
+            else:
+                stream.write("\n" + "=" * 78 + "\n")
+                stream.write(L(args.lang, "summary", n=len(results)) + "\n")
     finally:
         if out_fh:
             out_fh.close()
@@ -880,6 +990,10 @@ def main():
     if args.csv:
         write_csv(results, args.csv, args.lang)
         print(L(args.lang, "wrote_csv", path=args.csv))
+
+    if args.unresolved:
+        n = write_unresolved(results, args.unresolved, args.lang)
+        print(L(args.lang, "wrote_unresolved", path=args.unresolved, n=n))
     return 0
 
 

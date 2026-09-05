@@ -87,6 +87,20 @@ LABELS = {
         "quant_int8": "possibly 8-bit quantized (contains U8 / I8 tensors)",
 
         "summary": "{n} file(s) analysed",
+        "summary_title": "Summary - {n} file(s)",
+        "summary_by_type": "By type",
+        "summary_by_base": "By base model",
+        "summary_damaged": "Unreadable - {n} file(s)",
+        "summary_unresolved": "Not identified - {n} file(s), listed for next time",
+        "unresolved_keys": "top-level keys",
+        "unresolved_hint_1": "These need a rule. Run tools/probe_header.py on one to see its full key structure.",
+        "unresolved_hint_2": "Pass --unresolved PATH to write the details to a file you can come back to.",
+        "unresolved_hint_3": "Models outside image and video generation (depth estimators, 3D, vision backbones) land here too - those are out of scope by design.",
+        "unresolved_file_title": "# Unidentified files - {n}",
+        "unresolved_file_intro": ("Everything needed to write a rule for these. Add one entry per\n"
+                                  "architecture to ARCHITECTURES in rules.py, tagged \"unverified\"\n"
+                                  "until you have checked it against the file itself."),
+        "wrote_unresolved": "Wrote {n} unidentified file(s) to: {path}",
         "not_found": "no safetensors found",
         "skip": "[skip] not found: {path}",
         "wrote": "Wrote results to: {path}",
@@ -112,6 +126,8 @@ LABELS = {
         "help_json": "emit JSON",
         "help_csv": "write a summary CSV (UTF-8 with BOM)",
         "help_out": "write results to a file (UTF-8 with BOM, so it opens cleanly in Notepad and Excel)",
+        "help_unresolved": "write the files it could not identify to a file, with what is needed to add rules for them",
+        "help_no_summary": "skip the summary at the end of a multi-file run",
         "help_lang": "output language (default: en)",
     },
     "ja": {
@@ -180,6 +196,20 @@ LABELS = {
         "quant_int8": "8bit 量子化の可能性（U8 / I8 テンソルを含む）",
 
         "summary": "{n} ファイルを解析",
+        "summary_title": "サマリ — {n} ファイル",
+        "summary_by_type": "種別ごと",
+        "summary_by_base": "ベースモデルごと",
+        "summary_damaged": "読めなかったもの — {n} ファイル",
+        "summary_unresolved": "判別できず — {n} ファイル（次回に回す分）",
+        "unresolved_keys": "トップレベルのキー",
+        "unresolved_hint_1": "これらはルールの追加が要る。tools/probe_header.py にかけると全キー構造が見られる。",
+        "unresolved_hint_2": "--unresolved PATH を付けると、後から見返せるようファイルに書き出す。",
+        "unresolved_hint_3": "画像・動画生成用でないモデル（深度推定、3D 生成、視覚バックボーンなど）もここに出る。これらは対象外として想定どおり。",
+        "unresolved_file_title": "# 判別できなかったファイル — {n} 件",
+        "unresolved_file_intro": ("これらのルールを書くのに必要な情報。rules.py の ARCHITECTURES に\n"
+                                  "アーキテクチャごとに 1 エントリ足す。実ファイルで確認するまでは\n"
+                                  "\"unverified\" のままにしておくこと。"),
+        "wrote_unresolved": "判別できなかった {n} 件を書き出した: {path}",
         "not_found": "safetensors が見つからない",
         "skip": "[skip] 見つからない: {path}",
         "wrote": "結果を書き出した: {path}",
@@ -205,6 +235,8 @@ LABELS = {
         "help_json": "JSON で出力",
         "help_csv": "一覧を CSV に書き出す（UTF-8 BOM 付き）",
         "help_out": "結果をファイルに書き出す（UTF-8 BOM 付き。メモ帳や Excel でそのまま開ける）",
+        "help_unresolved": "判別できなかったファイルを、ルール追加に必要な情報つきで書き出す",
+        "help_no_summary": "複数ファイル走査時の末尾サマリを出さない",
         "help_lang": "出力言語（既定: en）",
     },
 }

@@ -242,6 +242,48 @@ or a broken image. If loading errors out, check the Dialect line.
 changes colour and fine detail. If the checkpoint already bundles one, the
 built-in VAE is used unless you override it.
 
+## 3b. The summary at the end of a folder scan
+
+Scanning more than one file ends with a summary:
+
+```
+==============================================================================
+Summary - 40 file(s)
+
+By type
+    12  LoRA (kohya / sd-scripts layout)
+    10  Diffusion backbone only ...
+     3  Full checkpoint ...
+
+By base model
+    17  SDXL family ...
+    10  not identified
+     3  Qwen-Image / Qwen-Image-Edit
+
+Not identified - 10 file(s), listed for next time
+  mystery.safetensors
+      top-level keys: blocks (690), t_embedder (4), input_layer (2)
+```
+
+The last block is the one to act on. Those files need a rule, and the top-level
+key names are the first thing you would need to write one.
+
+To keep that list rather than scroll back to it:
+
+```bash
+python stinspect.py path/to/models -r --unresolved todo.txt
+```
+
+That file carries paths, tensor counts, dtypes, sample keys and any weak matches
+— everything needed to add a rule later, or to hand to someone who will.
+
+Models outside image and video generation (depth estimators, 3D generators,
+vision backbones) show up in this list too. They are out of scope, not a gap.
+
+`--no-summary` turns the block off.
+
+Nothing is moved, renamed or written over at any point. The tool reports.
+
 ## 4. When nothing is identified
 
 ```

@@ -93,6 +93,8 @@ python stinspect.py path/to/models --lang ja
 | `--meta` | print all metadata instead of the highlights |
 | `--keys` | also print sample key names, for investigating unidentified files |
 | `--json` | emit JSON |
+| `--unresolved PATH` | write the files it could not identify, with what a rule would need |
+| `--no-summary` | skip the summary at the end of a multi-file run |
 | `--lang {en,ja}` | output language (default `en`) |
 
 Prefer `-o` over shell redirection: `>` writes UTF-8 without a BOM, which Notepad
@@ -189,6 +191,33 @@ are all written up in [docs/key-reference.md](docs/key-reference.md).
 Five of those live in gated repositories (FLUX.1, SD3.5). Running the tool
 without an account skips them and the other 42 still pass. To include them,
 accept the licences on Hugging Face yourself and set `HF_TOKEN`.
+
+## What it could not identify
+
+Scanning a folder ends with a summary — counts by type and by base model,
+anything unreadable, and the part worth acting on: every file whose base could
+not be established, with the top-level key names needed to write a rule for it.
+
+```
+Not identified - 3 file(s), listed for next time
+  mystery.safetensors
+      top-level keys: blocks (690), t_embedder (4), input_layer (2)
+```
+
+`--unresolved PATH` writes those out in full — paths, tensor counts, dtypes,
+sample keys and any weak matches — so the work can be picked up later rather than
+scrolling back through a long run.
+
+```bash
+python stinspect.py path/to/models -r --unresolved todo.txt
+```
+
+Nothing is moved, renamed or written over. The tool reports; what to do about it
+is yours to decide.
+
+Models outside image and video generation (depth estimators, 3D generators,
+vision backbones) land in this list too. Those are out of scope by design, not a
+gap waiting to be filled.
 
 ## Reading the output
 

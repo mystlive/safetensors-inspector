@@ -30,6 +30,11 @@ This guide applies to all of them.
 The `--html` table draws 500 rows at a time, so a folder with thousands of files
 stays responsive; "show more" adds the next 500. The browser's own Ctrl+F only
 sees drawn rows, so search the whole set with the box on the page.
+
+A folder scan also puts two collapsed panels above the table, holding the same
+content as the terminal's [summary](#3b-the-summary-at-the-end-of-a-folder-scan)
+and the [`--unresolved` write-out](#4-when-nothing-is-identified). `--no-summary`
+drops both, as it does in the terminal.
 | `--json` | for feeding another tool |
 
 ## 2. Line by line

@@ -78,6 +78,38 @@ dd div { word-break: break-word; }
 dd div.sub { color: var(--dim); }
 dd .prefix { color: var(--dim); }
 .empty { padding: 40px 0; color: var(--dim); text-align: center; }
+details.panel {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 5px;
+  margin: 16px 0 0;
+}
+details.panel > summary {
+  padding: 10px 14px; cursor: pointer; font-weight: 600; user-select: none;
+}
+details.panel > summary:hover { color: var(--accent); }
+.panel-body { padding: 4px 18px 18px; }
+.panel-body h3 {
+  margin: 16px 0 6px; font-size: 13px; font-weight: 600; color: var(--dim);
+}
+.panel-body h3:first-child { margin-top: 4px; }
+ul.counts, ul.plain { list-style: none; margin: 0; padding: 0; }
+ul.counts li { display: flex; gap: 12px; }
+ul.counts .n {
+  min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+ul.plain li { margin-bottom: 4px; word-break: break-word; }
+ul.plain li .who { font-weight: 600; }
+ul.plain li .sub { color: var(--dim); }
+/* pre-line: the unresolved intro is written as several lines. */
+.hint { color: var(--dim); margin-top: 10px; white-space: pre-line; }
+.entry { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.entry:first-child { border-top: 0; margin-top: 4px; padding-top: 0; }
+.entry > .who { font-weight: 600; word-break: break-all; }
+ul.keys {
+  list-style: none; margin: 2px 0 0; padding: 0;
+  font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+}
+ul.keys li { word-break: break-all; }
 tr.more > td { text-align: center; padding: 14px 0; }
 button.more {
   background: var(--panel); color: var(--fg); border: 1px solid var(--line);
@@ -229,6 +261,86 @@ JS = """
     }
   }
 
+  function panel(id, title) {
+    var p = document.getElementById(id);
+    p.hidden = false;
+    p.querySelector('summary').textContent = title;
+    return p.querySelector('.panel-body');
+  }
+
+  function nameList(items, second, block) {
+    var ul = el('ul', 'plain');
+    items.forEach(function (it) {
+      var li = el('li');
+      li.appendChild(el('span', 'who', it.name));
+      if (block) {
+        li.appendChild(el('div', 'sub', second(it)));
+      } else {
+        li.appendChild(document.createTextNode(second(it)));
+      }
+      ul.appendChild(li);
+    });
+    return ul;
+  }
+
+  if (page.summary) {
+    var s = page.summary;
+    var body = panel('summary-panel', s.title);
+    s.groups.forEach(function (g) {
+      body.appendChild(el('h3', null, g.title));
+      var ul = el('ul', 'counts');
+      g.counts.forEach(function (c) {
+        var li = el('li');
+        li.appendChild(el('span', 'n', c[1]));
+        li.appendChild(el('span', null, c[0]));
+        ul.appendChild(li);
+      });
+      body.appendChild(ul);
+    });
+    if (s.damaged) {
+      body.appendChild(el('h3', null, s.damaged.title));
+      body.appendChild(nameList(s.damaged.items, function (it) {
+        return ': ' + it.text;
+      }));
+    }
+    if (s.unresolved) {
+      body.appendChild(el('h3', null, s.unresolved.title));
+      body.appendChild(nameList(s.unresolved.items, function (it) {
+        return s.unresolved.keys_label + ': ' + it.keys;
+      }, true));
+      s.unresolved.hints.forEach(function (h) {
+        body.appendChild(el('div', 'hint', h.text));
+      });
+    }
+  }
+
+  if (page.unresolved) {
+    var u = page.unresolved;
+    var ubody = panel('unresolved-panel', u.title);
+    ubody.appendChild(el('div', 'hint', u.intro));
+    u.items.forEach(function (it) {
+      var box = el('div', 'entry');
+      box.appendChild(el('div', 'who', it.name));
+      box.appendChild(el('div', 'path', it.path));
+      box.appendChild(el('div', 'stats', it.stats));
+      var dl = el('dl');
+      it.rows.forEach(function (row) {
+        dl.appendChild(el('dt', null, row.label));
+        var dd = el('dd');
+        if (row.list) {
+          var ul = el('ul', 'keys');
+          row.items.forEach(function (k) { ul.appendChild(el('li', null, k)); });
+          dd.appendChild(ul);
+        } else {
+          dd.appendChild(el('div', null, row.value));
+        }
+        dl.appendChild(dd);
+      });
+      box.appendChild(dl);
+      ubody.appendChild(box);
+    });
+  }
+
   var head = document.getElementById('head');
   cols.forEach(function (c) {
     var th = el('th', null, c.label);
@@ -294,6 +406,12 @@ def render(page):
   </div>
 </header>
 <div class="wrap">
+  <details class="panel" id="summary-panel" hidden>
+    <summary></summary><div class="panel-body"></div>
+  </details>
+  <details class="panel" id="unresolved-panel" hidden>
+    <summary></summary><div class="panel-body"></div>
+  </details>
   <table><thead><tr id="head"></tr></thead><tbody id="rows"></tbody></table>
 </div>
 <script type="application/json" id="stinspect-data">{_payload(page)}</script>

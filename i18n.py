@@ -96,7 +96,9 @@ LABELS = {
         "unresolved_hint_1": "These need a rule. Run tools/probe_header.py on one to see its full key structure.",
         "unresolved_hint_2": "Pass --unresolved PATH to write the details to a file you can come back to.",
         "unresolved_hint_3": "Models outside image and video generation (depth estimators, 3D, vision backbones) land here too - those are out of scope by design.",
-        "unresolved_file_title": "# Unidentified files - {n}",
+        # No leading "#": write_unresolved adds one for the file it writes, and
+        # the HTML panel uses the bare title as its heading.
+        "unresolved_file_title": "Unidentified files - {n}",
         "unresolved_file_intro": ("Everything needed to write a rule for these. Add one entry per\n"
                                   "architecture to ARCHITECTURES in rules.py, tagged \"unverified\"\n"
                                   "until you have checked it against the file itself."),
@@ -216,7 +218,9 @@ LABELS = {
         "unresolved_hint_1": "これらはルールの追加が要る。tools/probe_header.py にかけると全キー構造が見られる。",
         "unresolved_hint_2": "--unresolved PATH を付けると、後から見返せるようファイルに書き出す。",
         "unresolved_hint_3": "画像・動画生成用でないモデル（深度推定、3D 生成、視覚バックボーンなど）もここに出る。これらは対象外として想定どおり。",
-        "unresolved_file_title": "# 判別できなかったファイル — {n} 件",
+        # 先頭の "#" は付けない。ファイルに書くときは write_unresolved が足し、
+        # HTML のパネルは見出しとしてそのまま使う
+        "unresolved_file_title": "判別できなかったファイル — {n} 件",
         "unresolved_file_intro": ("これらのルールを書くのに必要な情報。rules.py の ARCHITECTURES に\n"
                                   "アーキテクチャごとに 1 エントリ足す。実ファイルで確認するまでは\n"
                                   "\"unverified\" のままにしておくこと。"),

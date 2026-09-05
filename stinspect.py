@@ -856,80 +856,147 @@ def unresolved_files(results):
     return out
 
 
-def print_summary(results, args, out=sys.stdout):
-    lang = args.lang
-    w = out.write
+def build_summary(results, lang):
+    """The tail of a multi-file run, before formatting.
+
+    The text report prints this; the HTML report shows the same thing in a
+    panel. Wrapping stays with whoever renders it.
+    """
     ok = [r for r in results if not r["error"]]
     bad = [r for r in results if r["error"]]
 
-    w("\n" + "=" * 78 + "\n")
-    w(L(lang, "summary_title", n=len(results)) + "\n")
-
+    groups = []
     kinds = Counter()
     for r in ok:
         kinds[tr(r["dialect"]["name"], lang) if r["dialect"]
               else L(lang, f"kind_{r['kind']}")] += 1
     if kinds:
-        w("\n" + L(lang, "summary_by_type") + "\n")
-        for name, n in kinds.most_common():
-            w(f"  {n:>4}  {name}\n")
+        groups.append({"title": L(lang, "summary_by_type"),
+                       "counts": kinds.most_common()})
 
     bases = Counter()
     for r in ok:
         b = base_of(r, lang)
         bases[b if b else L(lang, "base_unknown")] += 1
     if bases:
-        w("\n" + L(lang, "summary_by_base") + "\n")
-        for name, n in bases.most_common():
-            w(f"  {n:>4}  {name}\n")
+        groups.append({"title": L(lang, "summary_by_base"),
+                       "counts": bases.most_common()})
 
+    damaged = None
     if bad:
-        w("\n" + L(lang, "summary_damaged", n=len(bad)) + "\n")
-        for r in bad:
-            msg = r["error"].message(lang) if isinstance(r["error"], HeaderError) else str(r["error"])
-            w(f"  {r['name']}: {msg}\n")
+        damaged = {"title": L(lang, "summary_damaged", n=len(bad)),
+                   "items": [{"name": r["name"], "text": error_text(r, lang)}
+                             for r in bad]}
 
     unres = unresolved_files(ok)
+    unresolved = None
     if unres:
-        w("\n" + L(lang, "summary_unresolved", n=len(unres)) + "\n")
-        for r in unres:
-            w(f"  {r['name']}\n")
-            pref = ", ".join(f"{k} ({n})" for k, n in r.get("key_prefixes", []))
-            w(f"      {L(lang, 'unresolved_keys')}: {pref}\n")
-        w("\n  " + L(lang, "unresolved_hint_1") + "\n")
-        w("  " + L(lang, "unresolved_hint_2") + "\n")
-        w("  " + wrap_note(L(lang, "unresolved_hint_3"), lang, width=70, indent="  ") + "\n")
+        unresolved = {
+            "title": L(lang, "summary_unresolved", n=len(unres)),
+            "keys_label": L(lang, "unresolved_keys"),
+            "items": [{"name": r["name"],
+                       "keys": ", ".join(f"{k} ({n})"
+                                         for k, n in r.get("key_prefixes", []))}
+                      for r in unres],
+            # Only the last hint is long enough to need folding in a terminal.
+            "hints": [{"text": L(lang, "unresolved_hint_1"), "wrap": False},
+                      {"text": L(lang, "unresolved_hint_2"), "wrap": False},
+                      {"text": L(lang, "unresolved_hint_3"), "wrap": True}],
+        }
+
+    return {"title": L(lang, "summary_title", n=len(results)),
+            "groups": groups, "damaged": damaged, "unresolved": unresolved}
+
+
+def print_summary(results, args, out=sys.stdout):
+    lang = args.lang
+    s = build_summary(results, lang)
+    w = out.write
+
+    w("\n" + "=" * 78 + "\n")
+    w(s["title"] + "\n")
+
+    for g in s["groups"]:
+        w("\n" + g["title"] + "\n")
+        for name, n in g["counts"]:
+            w(f"  {n:>4}  {name}\n")
+
+    if s["damaged"]:
+        w("\n" + s["damaged"]["title"] + "\n")
+        for it in s["damaged"]["items"]:
+            w(f"  {it['name']}: {it['text']}\n")
+
+    if s["unresolved"]:
+        u = s["unresolved"]
+        w("\n" + u["title"] + "\n")
+        for it in u["items"]:
+            w(f"  {it['name']}\n")
+            w(f"      {u['keys_label']}: {it['keys']}\n")
+        w("\n")
+        for h in u["hints"]:
+            text = (wrap_note(h["text"], lang, width=70, indent="  ")
+                    if h["wrap"] else h["text"])
+            w("  " + text + "\n")
+
+
+def build_unresolved(results, lang):
+    """Per-file detail for the files that stumped it: what a rule would need.
+
+    Written out by --unresolved and shown as a panel in the HTML report.
+    """
+    items = []
+    for r in unresolved_files([r for r in results if not r["error"]]):
+        dt = ", ".join(f"{k}:{v}"
+                       for k, v in sorted(r["dtypes"].items(), key=lambda x: -x[1]))
+        rows = [
+            {"label": L(lang, "unresolved_keys"), "list": False,
+             "value": ", ".join(f"{k} ({n})" for k, n in r.get("key_prefixes", [])),
+             "items": []},
+        ]
+        comps = [tr(c["name"], lang) for c in r.get("components", [])]
+        rows.append({"label": L(lang, "label_parts"), "list": False,
+                     "value": " / ".join(comps) if comps else "-", "items": []})
+        if r.get("metadata"):
+            rows.append({"label": L(lang, "label_metadata"), "list": False,
+                         "value": ", ".join(sorted(r["metadata"])[:10]), "items": []})
+        weak = [a for a in r.get("architectures", []) if a["score"] < MIN_ARCH_SCORE]
+        if weak:
+            rows.append({"label": L(lang, "base_weak"), "list": False,
+                         "value": " / ".join(f"{tr(a['name'], lang)} ({a['score']})"
+                                             for a in weak[:3]),
+                         "items": []})
+        rows.append({"label": L(lang, "label_keys"), "list": True, "value": "",
+                     "items": list(r.get("sample_keys", []))})
+        items.append({
+            "name": r["name"], "path": r["path"],
+            "stats": (f"{human_size(r['size_bytes'])} / {r['n_tensors']} tensors / "
+                      f"{human_count(r['n_params'])} params / {dt}"),
+            "rows": rows,
+        })
+    return {"title": L(lang, "unresolved_file_title", n=len(items)),
+            "intro": L(lang, "unresolved_file_intro"), "items": items}
 
 
 def write_unresolved(results, path, lang):
     """Write the details needed to add rules for the files that stumped it."""
-    unres = unresolved_files([r for r in results if not r["error"]])
+    u = build_unresolved(results, lang)
     with open(path, "w", encoding="utf-8-sig", newline="\n") as f:
-        f.write(L(lang, "unresolved_file_title", n=len(unres)) + "\n")
-        f.write(L(lang, "unresolved_file_intro") + "\n\n")
-        for r in unres:
+        f.write("# " + u["title"] + "\n")
+        f.write(u["intro"] + "\n\n")
+        for it in u["items"]:
             f.write("=" * 78 + "\n")
-            f.write(f"{r['name']}\n")
-            f.write(f"  {r['path']}\n")
-            f.write(f"  {human_size(r['size_bytes'])} / {r['n_tensors']} tensors / "
-                    f"{human_count(r['n_params'])} params / "
-                    f"{', '.join(f'{k}:{v}' for k, v in sorted(r['dtypes'].items(), key=lambda x: -x[1]))}\n")
-            f.write(f"  {L(lang, 'unresolved_keys')}: "
-                    + ", ".join(f"{k} ({n})" for k, n in r.get("key_prefixes", [])) + "\n")
-            comps = [tr(c["name"], lang) for c in r.get("components", [])]
-            f.write(f"  {L(lang, 'label_parts')}: {' / '.join(comps) if comps else '-'}\n")
-            if r.get("metadata"):
-                f.write(f"  {L(lang, 'label_metadata')}: "
-                        + ", ".join(sorted(r["metadata"])[:10]) + "\n")
-            weak = [a for a in r.get("architectures", []) if a["score"] < MIN_ARCH_SCORE]
-            if weak:
-                f.write(f"  {L(lang, 'base_weak')}: "
-                        + " / ".join(f"{tr(a['name'], lang)} ({a['score']})" for a in weak[:3]) + "\n")
-            f.write(f"  {L(lang, 'label_keys')}:\n")
-            for k in r.get("sample_keys", []):
-                f.write(f"      {k}\n")
+            f.write(f"{it['name']}\n")
+            f.write(f"  {it['path']}\n")
+            f.write(f"  {it['stats']}\n")
+            for row in it["rows"]:
+                if row["list"]:
+                    f.write(f"  {row['label']}:\n")
+                    for k in row["items"]:
+                        f.write(f"      {k}\n")
+                else:
+                    f.write(f"  {row['label']}: {row['value']}\n")
             f.write("\n")
-    return len(unres)
+    return len(u["items"])
 
 
 def to_jsonable(r, lang):
@@ -1023,10 +1090,11 @@ HTML_COLUMNS = (
 )
 
 
-def build_page(results, lang, full_meta=False, show_keys=False):
+def build_page(results, lang, full_meta=False, show_keys=False, summary=True):
     """Everything report_html.py needs, with every string already in `lang`.
 
-    Details come from build_view, the same structure the text report renders.
+    Details come from build_view, and the two panels from build_summary and
+    build_unresolved - the same structures the text output renders.
     """
     rows = []
     for i, r in enumerate(results):
@@ -1059,10 +1127,17 @@ def build_page(results, lang, full_meta=False, show_keys=False):
             "haystack": " ".join((r["name"], r["path"], kind, base)).lower(),
         })
 
+    # One file says everything in its own detail, so the panels only earn their
+    # place on a folder scan - the same rule the text report follows.
+    panels = summary and len(results) > 1
+    detail = build_unresolved(results, lang) if panels else None
+
     return {
         "lang": lang,
         "title": L(lang, "html_title"),
         "chunk": HTML_ROW_CHUNK,
+        "summary": build_summary(results, lang) if panels else None,
+        "unresolved": detail if (detail and detail["items"]) else None,
         "ui": {
             "search": L(lang, "html_search"),
             "all_kinds": L(lang, "html_all_kinds"),
@@ -1156,7 +1231,8 @@ def main():
 
     if args.html:
         report_html.write_html(
-            build_page(results, args.lang, full_meta=args.meta, show_keys=args.keys),
+            build_page(results, args.lang, full_meta=args.meta,
+                       show_keys=args.keys, summary=not args.no_summary),
             args.html)
         print(L(args.lang, "wrote_html", path=args.html))
 

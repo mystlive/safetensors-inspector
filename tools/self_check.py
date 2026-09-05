@@ -277,6 +277,51 @@ for label, fn in (("summary", lambda: stinspect.print_summary(results, Args(), o
         print(f"  FAIL  {label}: {type(e).__name__}: {e}")
 
 # ---------------------------------------------------------------------------
+section("parents are read out of whatever metadata records them")
+# The ComfyUI graph is arbitrary JSON written by someone else's software, so it
+# has to survive being anything at all.
+PARENT_CASES = [
+    ("merged_from", {"modelspec.merged_from": "a, b"}, ["a", "b"]),
+    ("merged_loras paired",
+     {"merged_loras": "a.safetensors, b.safetensors", "merged_strengths": "0.3, 0.75"},
+     ["a.safetensors", "b.safetensors"]),
+    ("merged_loras with mismatched strengths",
+     {"merged_loras": "a.safetensors, b.safetensors", "merged_strengths": "0.3"},
+     ["a.safetensors", "b.safetensors"]),
+    ("comfy prompt",
+     {"prompt": '{"1": {"class_type": "CheckpointLoaderSimple",'
+                ' "inputs": {"ckpt_name": "x.safetensors"}}}'}, ["x.safetensors"]),
+    ("comfy workflow",
+     {"workflow": '{"nodes": [{"type": "L", "widgets_values": ["y.safetensors"]}]}'},
+     ["y.safetensors"]),
+    ("prompt that is not JSON", {"prompt": "{oops"}, []),
+    ("prompt that is a list", {"prompt": "[1,2,3]"}, []),
+    ("nodes that are not objects", {"prompt": '{"1": 5, "2": null}'}, []),
+    ("inputs that are not a mapping",
+     {"prompt": '{"1": {"class_type": "X", "inputs": 7}}'}, []),
+    ("workflow with junk nodes",
+     {"workflow": '{"nodes": [1, null, {"type": "A"}]}'}, []),
+    ("an empty merged_from", {"modelspec.merged_from": " , , "}, []),
+    ("no metadata at all", {}, []),
+]
+for label, meta, expect in PARENT_CASES:
+    try:
+        got = [n for e in stinspect.detect_parents(meta) for n, _ in e["items"]]
+        check(got == expect, f"{label}: {got}")
+    except Exception as e:
+        check(False, f"{label}: {type(e).__name__}: {e}")
+
+# The strengths are only attached when the two lists line up: a wrong strength
+# is worse than none.
+paired = stinspect.detect_parents(
+    {"merged_loras": "a, b", "merged_strengths": "0.3, 0.75"})[0]["items"]
+check(paired == [("a", "0.3"), ("b", "0.75")], f"strengths pair up: {paired}")
+mismatched = stinspect.detect_parents(
+    {"merged_loras": "a, b", "merged_strengths": "0.3"})[0]["items"]
+check(all(s is None for _, s in mismatched),
+      f"a mismatched list drops the strengths: {mismatched}")
+
+# ---------------------------------------------------------------------------
 section("the HTML report escapes metadata that carries markup")
 # ComfyUI writes its whole prompt and workflow JSON into __metadata__, so a
 # report can legitimately contain angle brackets. A `</script>` in there would

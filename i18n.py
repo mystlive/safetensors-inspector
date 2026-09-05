@@ -36,6 +36,8 @@ LABELS = {
         "label_placement": "Place in",
         "label_keys": "Keys",
         "label_triggers": "Triggers",
+        "label_parents": "Made from",
+        "label_settings": "settings",
         "hits": "{n} matches",
 
         "unreadable": "[unreadable]",
@@ -186,6 +188,8 @@ LABELS = {
         "label_placement": "配置",
         "label_keys": "キー例",
         "label_triggers": "トリガー",
+        "label_parents": "元モデル",
+        "label_settings": "設定",
         "hits": "{n} 件",
 
         "unreadable": "[読めない]",

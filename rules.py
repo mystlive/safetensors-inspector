@@ -1354,6 +1354,14 @@ META_GUIDE = [
                   "kohya の旧方式のハッシュ")},
 ]
 
+# Suffixes that mark a value as naming a model file. Used to read the parents
+# out of an embedded ComfyUI graph by what the values look like, rather than by
+# a table of node classes and their input names - anything beyond the one graph
+# measured here would be a guess, and this project has written imaginary keys
+# before. ".safetensors" is measured; the rest follow from the loaders ComfyUI
+# ships and are derived, not confirmed against a file.
+MODEL_FILE_SUFFIXES = (".safetensors", ".ckpt", ".pt", ".pth", ".bin", ".gguf")
+
 # Derived views, so the definition above stays the only place a key is named.
 META_HIGHLIGHT = [(e["key"], e["label"]) for e in META_GUIDE]
 META_BULKY = [e["key"] for e in META_GUIDE if e.get("bulky")]

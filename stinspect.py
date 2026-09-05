@@ -642,6 +642,99 @@ def _line(text, prefix="", wrap=False):
     return {"prefix": prefix, "text": text, "wrap": wrap}
 
 
+def _model_names(value, out):
+    """Collect anything that looks like a model file name, however nested."""
+    if isinstance(value, str):
+        if value.lower().endswith(rules.MODEL_FILE_SUFFIXES) and value not in out:
+            out.append(value)
+    elif isinstance(value, (list, tuple)):
+        for v in value:
+            _model_names(v, out)
+
+
+def parse_comfy_graph(raw):
+    """Model names and node settings out of an embedded ComfyUI graph.
+
+    Measured on one file: `prompt` is {node_id: {"class_type", "inputs"}} and
+    `workflow` is {"nodes": [{"type", "widgets_values"}]}. Both spell the loaded
+    model out as a plain file name, so names are found by what the value looks
+    like. Numbers are reported with the node and input that carried them rather
+    than interpreted - only `ratio` on ModelMergeSimple has actually been seen,
+    and naming the rest would be invention.
+    """
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else raw
+    except (TypeError, ValueError):
+        return [], []
+    if not isinstance(data, dict):
+        return [], []
+
+    names, settings = [], []
+    if isinstance(data.get("nodes"), list):                 # the "workflow" form
+        for node in data["nodes"]:
+            if not isinstance(node, dict):
+                continue
+            widgets = node.get("widgets_values")
+            _model_names(widgets, names)
+            for v in widgets if isinstance(widgets, list) else []:
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    settings.append((node.get("type") or "?", None, v))
+    else:                                                   # the "prompt" form
+        for node in data.values():
+            if not isinstance(node, dict):
+                continue
+            inputs = node.get("inputs")
+            if not isinstance(inputs, dict):
+                continue
+            _model_names(list(inputs.values()), names)
+            for k, v in inputs.items():
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    settings.append((node.get("class_type") or "?", k, v))
+    return names, settings
+
+
+def detect_parents(meta):
+    """What this file was made from, from whichever metadata recorded it.
+
+    Three sources seen in the wild, and a file usually carries at most one:
+    modelspec.merged_from names the parts, merged_loras names them with their
+    strengths, and a ComfyUI graph names the models it loaded. The last is the
+    only record on files whose merge left no other trace.
+    """
+    if not meta:
+        return []
+    out = []
+
+    merged = meta.get("modelspec.merged_from")
+    if merged:
+        items = [(n.strip(), None) for n in str(merged).split(",") if n.strip()]
+        if items:
+            out.append({"source": "modelspec.merged_from", "items": items,
+                        "settings": []})
+
+    loras = meta.get("merged_loras")
+    if loras:
+        names = [n.strip() for n in str(loras).split(",") if n.strip()]
+        strengths = [s.strip() for s in
+                     str(meta.get("merged_strengths", "")).split(",") if s.strip()]
+        # Paired only when the two lists line up; a mismatch means the pairing
+        # is not knowable, and a wrong strength is worse than none.
+        items = (list(zip(names, strengths)) if len(names) == len(strengths)
+                 else [(n, None) for n in names])
+        if items:
+            out.append({"source": "merged_loras", "items": items, "settings": []})
+
+    for key in ("prompt", "workflow"):
+        if key not in meta:
+            continue
+        names, settings = parse_comfy_graph(meta[key])
+        if names:
+            out.append({"source": key, "items": [(n, None) for n in names],
+                        "settings": settings})
+            break          # both hold the same graph
+    return out
+
+
 def build_metadata_items(meta, lang):
     """Every metadata entry a file carries, in reading order.
 
@@ -755,6 +848,20 @@ def build_view(r, lang, full_meta=False, show_keys=False):
                 for a in weak[:2])))
         lines.append(_line(L(lang, "base_hint")))
         add(rows, "label_base", *lines)
+
+    # Parents. Right after the base, because it answers the same question:
+    # what this file was made out of.
+    for p in detect_parents(r["metadata"]):
+        entry = rules.META_BY_KEY.get(p["source"])
+        source = tr(entry["label"], lang) if entry else p["source"]
+        names = " + ".join(f"{n} ({s})" if s else n for n, s in p["items"])
+        lines = [_line(names),
+                 _line(f"{L(lang, 'label_evidence')}: {source}")]
+        if p["settings"]:
+            lines.append(_line(f"{L(lang, 'label_settings')}: " + ", ".join(
+                f"{cls}.{key}={val}" if key else f"{cls}={val}"
+                for cls, key, val in p["settings"][:6])))
+        add(rows, "label_parents", *lines)
 
     # Contents
     if r["components"]:

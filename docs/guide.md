@@ -92,6 +92,35 @@ file.** In practice, try your SDXL checkpoints in turn. Guessing "anime style, s
 probably Illustrious" is inference from the filename or the source page, not
 something the tool established.
 
+### Made from
+
+What this file was built out of, shown only when the metadata recorded it, with
+the record it was read from.
+
+```
+  Made from   a2.safetensors + animayume_v05.safetensors
+              Evidence: ComfyUI graph
+              settings: ModelMergeSimple.ratio=0.5
+```
+
+Three records carry it, and any one of them is enough:
+
+| Record | What it gives |
+| --- | --- |
+| `modelspec.merged_from` | the names of the parts; no ratios |
+| `merged_loras` + `merge_strengths` | parent LoRAs with their weights, paired as `name (0.3)` |
+| ComfyUI's `prompt` / `workflow` | the models the graph loaded, plus each node's numeric settings |
+
+Strengths are attached only when the two lists are the same length. Otherwise
+just the names appear: **a wrong strength is worse than none.**
+
+The ComfyUI graph is read by looking for values that name a model file rather
+than by a table of node classes - `.safetensors` is measured, the other
+suffixes are derived. Numbers are reported with the node and input they came
+from rather than interpreted, since only `ratio` has been seen on a real file.
+
+Of the 38 files measured here, three record a parent at all.
+
 ### Contents
 
 What is inside. `UNet (LDM / SAI naming)` versus `UNet (diffusers naming)` is a
@@ -194,10 +223,9 @@ verdict**. Two entries settle the base model outright:
 - `training base` (`ss_base_model_version`) — the actual base used for training
 - `declared architecture` (`modelspec.architecture`) — what the producing tool declared
 
-`merged from` tells you what went into a merge. `merged LoRAs` and
-`merge strengths` pair up in the same order. A file saved by ComfyUI keeps the
-loaded model names and the merge ratio in `ComfyUI workflow`, so the parents can
-be read off it even with no `merged from` (`--meta` prints it in full).
+All three records of a parent - `merged from`, `merged LoRAs` with
+`merge strengths`, and a ComfyUI graph - are gathered into the **Made from**
+line. See below.
 
 #### Entries that carry a caveat
 

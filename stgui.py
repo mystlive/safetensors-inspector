@@ -35,7 +35,7 @@ from i18n import L
 GUI_KEYS = (
     "gui_title", "gui_target", "gui_output", "gui_output_default",
     "gui_output_default_path", "gui_browse", "gui_recursive", "gui_meta",
-    "gui_keys", "gui_lang", "gui_scan", "gui_cancel", "gui_pick_target",
+    "gui_keys", "gui_lang", "gui_scan", "gui_open", "gui_cancel", "gui_pick_target",
     "gui_pick_output", "gui_need_target", "gui_collecting", "gui_progress",
     "gui_none", "gui_done", "gui_cancelled", "gui_failed",
 )
@@ -70,6 +70,7 @@ class App(tk.Tk):
 
         self._build()
         self._retranslate()
+        self._target_changed()
         self.after(60, self._drain)
 
     # -- layout ------------------------------------------------------------
@@ -111,8 +112,10 @@ class App(tk.Tk):
         box.grid(row=0, column=4)
         box.bind("<<ComboboxSelected>>", lambda _e: self._retranslate())
         # Say where an empty output box will actually write, as soon as there
-        # is a folder to name the file after.
-        self.target.trace_add("write", lambda *_: self._show_default())
+        # is a folder to name the file after, and offer to open whatever report
+        # is already sitting at that path.
+        self.target.trace_add("write", lambda *_: self._target_changed())
+        self.output.trace_add("write", lambda *_: self._target_changed())
 
         self.bar = ttk.Progressbar(frame, mode="determinate")
         self.bar.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(8, 4))
@@ -120,8 +123,12 @@ class App(tk.Tk):
         self.status = ttk.Label(frame, anchor="w")
         self.status.grid(row=5, column=0, columnspan=3, sticky="ew")
 
-        self.run = ttk.Button(frame, command=self._toggle)
-        self.run.grid(row=6, column=2, sticky="e", pady=(10, 0))
+        buttons = ttk.Frame(frame)
+        buttons.grid(row=6, column=0, columnspan=3, sticky="e", pady=(10, 0))
+        self.labels["open"] = ttk.Button(buttons, command=self._open)
+        self.labels["open"].grid(row=0, column=0, padx=(0, 8))
+        self.run = ttk.Button(buttons, command=self._toggle)
+        self.run.grid(row=0, column=1)
 
     def _retranslate(self):
         lang = self.lang.get()
@@ -135,7 +142,12 @@ class App(tk.Tk):
         self.labels["meta"].config(text=L(lang, "gui_meta"))
         self.labels["keys"].config(text=L(lang, "gui_keys"))
         self.labels["lang"].config(text=L(lang, "gui_lang"))
+        self.labels["open"].config(text=L(lang, "gui_open"))
         self.run.config(text=L(lang, "gui_cancel" if self.worker else "gui_scan"))
+
+    def _target_changed(self):
+        self._show_default()
+        self._refresh_open()
 
     def _show_default(self):
         lang = self.lang.get()
@@ -144,6 +156,22 @@ class App(tk.Tk):
                   path=default_report_path(Path(target)))
                 if target else L(lang, "gui_output_default"))
         self.labels["output_default"].config(text=text)
+
+    def report_path(self):
+        """Where a report would be, whether or not one has been written yet."""
+        out = self.output.get().strip()
+        if out:
+            return Path(out)
+        target = self.target.get().strip()
+        return default_report_path(Path(target)) if target else None
+
+    def _refresh_open(self):
+        """Open is live whenever a report is actually sitting at that path -
+        including one written by an earlier run, so a closed tab is one click
+        back rather than another scan."""
+        path = self.report_path()
+        ready = path is not None and path.is_file()
+        self.labels["open"].config(state="normal" if ready else "disabled")
 
     # -- actions -----------------------------------------------------------
     def _pick_target(self):
@@ -170,6 +198,11 @@ class App(tk.Tk):
             filetypes=[("HTML", "*.html")])
         if path:
             self.output.set(path)
+
+    def _open(self):
+        path = self.report_path()
+        if path and path.is_file():
+            webbrowser.open(path.resolve().as_uri())
 
     def _toggle(self):
         if self.worker:
@@ -248,6 +281,7 @@ class App(tk.Tk):
         self.worker = None
         self.status.config(text=message)
         self._retranslate()
+        self._refresh_open()
 
 
 def main():

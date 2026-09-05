@@ -111,7 +111,9 @@ and some editors then misread as the local codepage.
 ### Without a terminal
 
 `stgui.py` is a small window for starting a scan: pick a folder, watch the
-progress, and the HTML report opens in your browser when it finishes.
+progress, and the HTML report opens in your browser when it finishes. **Open
+report** opens it again afterwards - including a report an earlier run left at
+that path, so a closed tab costs a click rather than another scan.
 
 ```bash
 python stgui.py

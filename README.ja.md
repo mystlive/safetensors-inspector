@@ -101,6 +101,8 @@ python stinspect.py path/to/models -r --lang ja --html auto
 ### 端末を使わない場合
 
 `stgui.py` は走査を始めるだけの小さな窓。フォルダを選び、進捗を見て、終わると HTML レポートがブラウザで開く。
+**「レポートを開く」**ボタンで開き直せる。前回の走査が残したレポートも対象なので、
+タブを閉じてしまっても走査し直す必要はない。
 
 ```bash
 python stgui.py

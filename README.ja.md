@@ -94,6 +94,21 @@ python stinspect.py path/to/models -r --lang ja --html report.html
 
 ファイルに残すときは `>` ではなく `-o` を使う。`>` は BOM なし UTF-8 で書くため、メモ帳などが Shift_JIS と誤認して化ける。
 
+### 端末を使わない場合
+
+`stgui.py` は走査を始めるだけの小さな窓。フォルダを選び、進捗を見て、終わると HTML レポートがブラウザで開く。
+
+```bash
+python stgui.py
+```
+
+Windows では `pythonw stgui.py` で起動すると、後ろに黒いコンソールが出ない。
+
+使うのは Python 同梱の tkinter だけなので、追加でインストールするものはない。
+出力先を空欄にすると、走査したフォルダ名を付けて一時フォルダに書く。残したいときは記入するか「参照」で選ぶ。
+窓がするのは走査の開始だけで、読むものは `--html` が書くのと同じ HTML レポート。
+ドラッグ&ドロップには対応しない（`tkdnd` という外部パッケージが要るため）。
+
 ## 判別できること
 
 - **種別** — 完全なチェックポイント / 拡散モデル本体のみ / LoRA / VAE / Text Encoder / ControlNet / Embedding

@@ -8,7 +8,8 @@ does that. This checks the things that rot quietly:
 
   - counts quoted in the READMEs and the key reference vs the actual rule tables
   - every verification target appearing in the documented model list
-  - message keys used by the code existing in both languages
+  - message keys used by the code existing in both languages, including the
+    launcher window's GUI_KEYS list matching what it actually asks for
   - the two language catalogues holding the same set of keys
   - every rule carrying both languages, a unique id, and valid regexes
   - signals that never match anything in the cached headers
@@ -119,6 +120,22 @@ used |= {f"kind_{k}" for k in ("checkpoint", "unet_only", "backbone_vae", "text_
                                "vae", "controlnet", "embedding", "unknown")}
 used |= {f"verified_{v}" for v in ("measured", "derived", "unverified")}
 used |= {"target_unet", "target_te", "target_vae"}
+
+# stgui.py declares its keys in GUI_KEYS. Read the list out of the source
+# rather than importing the module, which would require Tk to be installed.
+gui_src = (ROOT / "stgui.py").read_text(encoding="utf-8")
+block = re.search(r"GUI_KEYS = \((.*?)\)", gui_src, re.S)
+check(block is not None, "stgui.py declares GUI_KEYS")
+if block:
+    declared = set(re.findall(r'"([a-z0-9_]+)"', block.group(1)))
+    body = gui_src[:block.start()] + gui_src[block.end():]
+    called = set(re.findall(r'"(gui_[a-z0-9_]+)"', body))
+    check(not (called - declared),
+          f"gui keys used but not declared: {sorted(called - declared)[:6]}")
+    check(not (declared - called),
+          f"declared in GUI_KEYS but never used: {sorted(declared - called)[:6]}")
+    used |= declared
+
 for lang in ("en", "ja"):
     miss = sorted(k for k in used if k not in LABELS[lang])
     check(not miss, f"{lang}: missing keys {miss[:6]}")

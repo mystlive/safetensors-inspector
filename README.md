@@ -104,6 +104,24 @@ python stinspect.py path/to/models --lang ja
 Prefer `-o` over shell redirection: `>` writes UTF-8 without a BOM, which Notepad
 and some editors then misread as the local codepage.
 
+### Without a terminal
+
+`stgui.py` is a small window for starting a scan: pick a folder, watch the
+progress, and the HTML report opens in your browser when it finishes.
+
+```bash
+python stgui.py
+```
+
+On Windows, `pythonw stgui.py` starts it without a console window behind it.
+
+It uses tkinter, which ships with Python, so there is still nothing to install.
+Leave the report box empty and the file goes to a temporary folder, named after
+the folder scanned; fill it in (or use Browse) to keep the report somewhere.
+The window only starts scans — everything you read afterwards is the same HTML
+report `--html` writes. There is no drag and drop: that needs `tkdnd`, which
+would be a dependency.
+
 ## What it tells you
 
 - **Type** — full checkpoint, diffusion backbone only, LoRA, VAE, text encoder,

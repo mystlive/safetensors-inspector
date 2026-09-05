@@ -1142,39 +1142,222 @@ PLACEMENT = {
 # 7. Metadata keys worth surfacing first.
 #    Keys marked (measured) were seen in real files.
 # =========================================================================
-META_HIGHLIGHT = [
-    ("ss_base_model_version", T("training base", "学習時のベース")),           # measured
-    ("ss_sd_model_name", T("base model name", "学習時のベースモデル名")),
-    ("ss_output_name", T("output name", "出力名")),                              # measured
-    ("ss_network_module", T("network type", "ネットワーク種別")),
-    ("ss_network_dim", T("rank (network_dim)", "rank (network_dim)")),
-    ("ss_network_alpha", T("alpha", "alpha")),
-    ("ss_network_args", T("network args", "ネットワーク引数")),
-    ("ss_resolution", T("training resolution", "学習解像度")),
-    ("ss_clip_skip", T("clip skip", "clip skip")),
-    ("ss_num_train_images", T("training images", "学習画像数")),
-    ("ss_num_epochs", T("epochs", "エポック数")),
-    ("ss_learning_rate", T("learning rate", "学習率")),
-    ("modelspec.architecture", T("declared architecture", "宣言アーキテクチャ")),  # measured
-    ("modelspec.title", T("title", "タイトル")),                                  # measured
-    ("modelspec.resolution", T("resolution", "解像度")),                          # measured
-    ("modelspec.prediction_type", T("prediction type", "予測タイプ")),            # measured
-    ("modelspec.implementation", T("implementation", "実装")),                    # measured
-    ("modelspec.merged_from", T("merged from", "マージ元")),                      # measured
-    ("modelspec.date", T("created", "作成日")),                                   # measured
-    ("modelspec.author", T("author", "作者")),                                    # measured
-    ("modelspec.description", T("description", "説明")),                          # measured
-    ("software", T("producing software", "作成ソフトウェア")),                     # measured
-    ("training_info", T("training progress", "学習進捗")),                        # measured
-    ("name", T("name", "名前")),                                                  # measured
-    ("version", T("version", "バージョン")),                                      # measured
-    ("ot_branch", T("OneTrainer branch", "OneTrainer ブランチ")),                 # measured
-    ("ot_revision", T("OneTrainer revision", "OneTrainer リビジョン")),           # measured
+# Metadata display categories, in the order they appear. The HTML report lets
+# the reader switch these on and off; everything a file carries is embedded
+# either way, so nothing is lost by unticking one.
+META_CATEGORIES = [
+    ("identity", T("identity", "素性・名前")),
+    ("origin", T("origin", "作者・ライセンス")),
+    ("lineage", T("lineage", "マージ元・親")),
+    ("training", T("training", "学習設定")),
+    ("image", T("preview", "見本画像")),
+    ("software", T("software and route", "ソフトと経路")),
+    ("hash", T("hashes", "ハッシュ")),
+    ("other", T("other", "その他")),
 ]
 
-# Metadata values that are too bulky to print raw.
-META_BULKY = ["modelspec.thumbnail", "ss_tag_frequency", "workflow", "prompt",
-              "ss_dataset_dirs", "ss_bucket_info", "ss_datasets"]
+# What each metadata key means, and where reading it plainly goes wrong.
+#
+#   key      the metadata key as written in the file
+#   cat      one of META_CATEGORIES
+#   label    what to call it
+#   explain  what the value means. ABSENT means the value speaks for itself -
+#            registered deliberately, so that a key missing from this table can
+#            be reported as "not understood" instead of silently blank
+#   caveat   how reading it plainly misleads. Shown even where the explanation
+#            is hidden, because whoever is about to be misled will not open it
+#   display  "text" (default), "image", or "json"
+#   bulky    printed as a length rather than in full unless --meta is given
+#
+# The order here is the order the report shows them in.
+META_GUIDE = [
+    # -- identity: what this file calls itself -----------------------------
+    {"key": "modelspec.architecture", "cat": "identity",
+     "label": T("declared architecture", "宣言アーキテクチャ"),
+     "explain": T("the architecture the producing tool declared. The report "
+                  "checks it against what the weights actually look like",
+                  "作成ツールが宣言したアーキテクチャ。重みから読んだ判定と照合される")},
+    {"key": "modelspec.title", "cat": "identity", "label": T("title", "タイトル"),
+     "explain": T("what the producing tool called it. Every OneTrainer output "
+                  "measured here says \"Stable Diffusion XL 1.0 Base LoRA\", "
+                  "whatever the file actually is",
+                  "作成ツールが付けた名前。実測した OneTrainer 出力は"
+                  "中身によらずすべて \"Stable Diffusion XL 1.0 Base LoRA\""),
+     "caveat": T("may name the base model rather than this file",
+                 "このファイルではなくベースモデルを指している場合がある")},
+    {"key": "name", "cat": "identity", "label": T("name", "名前")},
+    {"key": "version", "cat": "identity", "label": T("version", "バージョン")},
+    {"key": "ss_output_name", "cat": "identity",
+     "label": T("output name", "出力名"),
+     "explain": T("the file name the training run was told to write",
+                  "学習時に指定された出力ファイル名")},
+    {"key": "modelspec.sai_model_spec", "cat": "identity",
+     "label": T("modelspec version", "modelspec の版"),
+     "explain": T("the version of the metadata format itself",
+                  "メタデータ形式そのものの版番号"),
+     "caveat": T("not the version of the model", "モデルの版ではない")},
+    {"key": "format", "cat": "identity", "label": T("tensor format", "テンソル形式"),
+     "explain": T("\"pt\" means the tensors came from PyTorch",
+                  "\"pt\" なら元は PyTorch のテンソル")},
+
+    # -- origin: who and when ----------------------------------------------
+    {"key": "modelspec.author", "cat": "origin", "label": T("author", "作者"),
+     "explain": T("who the producing tool credited. All 13 files measured here "
+                  "credit \"StabilityAI\" - the base model's author, not the "
+                  "person who trained them",
+                  "作成ツールが記録した作者。実測 13 件はすべて "
+                  "\"StabilityAI\"、つまり学習した人ではなくベースモデルの作者"),
+     "caveat": T("not necessarily whoever made this file",
+                 "このファイルを作った人とは限らない")},
+    {"key": "modelspec.date", "cat": "origin", "label": T("created", "作成日")},
+    {"key": "modelspec.license", "cat": "origin", "label": T("license", "ライセンス"),
+     "explain": T("written into the same modelspec block as the author and "
+                  "title, and copied along with them",
+                  "作者やタイトルと同じ modelspec に書かれ、まとめて写される"),
+     "caveat": T("may be the base model's licence, not this file's",
+                 "ベースモデルのライセンスである場合がある")},
+    {"key": "modelspec.description", "cat": "origin",
+     "label": T("description", "説明")},
+
+    # -- lineage: what it came from ----------------------------------------
+    {"key": "modelspec.merged_from", "cat": "lineage",
+     "label": T("merged from", "マージ元"),
+     "explain": T("the models this was merged from. Ratios are not recorded "
+                  "here", "マージ元のモデル名。比率は記録されない")},
+    {"key": "merged_loras", "cat": "lineage",
+     "label": T("merged LoRAs", "マージした LoRA"),
+     "explain": T("pairs up with merged_strengths, in the same order",
+                  "merged_strengths と同じ順で対応する")},
+    {"key": "merged_strengths", "cat": "lineage",
+     "label": T("merge strengths", "マージ強度"),
+     "explain": T("pairs up with merged_loras, in the same order",
+                  "merged_loras と同じ順で対応する")},
+    {"key": "merge_type", "cat": "lineage", "label": T("merge type", "マージ方式"),
+     "explain": T("how the parts were combined; the strengths mean different "
+                  "things per method",
+                  "どう合成したか。方式によって強度の意味が変わる")},
+    {"key": "merge_density", "cat": "lineage",
+     "label": T("merge density", "マージ密度"),
+     "explain": T("a coefficient whose meaning depends on the merge type",
+                  "マージ方式に依存する係数")},
+    {"key": "ss_base_model_version", "cat": "lineage",
+     "label": T("training base", "学習時のベース"),
+     "explain": T("the base the training run was pointed at. Trainers write "
+                  "truncated identifiers such as \"sdxl_\"",
+                  "学習に使ったベースの識別子。\"sdxl_\" のように"
+                  "途中で切れた値もそのまま入る")},
+    {"key": "ss_sd_model_name", "cat": "lineage",
+     "label": T("base model name", "学習時のベースモデル名")},
+    {"key": "workflow", "cat": "lineage",
+     "label": T("ComfyUI workflow", "ComfyUI ワークフロー"),
+     "explain": T("the node graph ComfyUI embeds when it saves a model. It "
+                  "names the models that were loaded and the merge ratio, so "
+                  "the parents can be read off it",
+                  "ComfyUI が保存時に埋め込むノードグラフ。読み込んだモデル名と"
+                  "マージ比率が入っており、親を辿れる"),
+     "display": "json", "bulky": True},
+    {"key": "prompt", "cat": "lineage",
+     "label": T("ComfyUI graph", "ComfyUI 実行グラフ"),
+     "explain": T("the same graph in the form ComfyUI executes: terser, with "
+                  "each node's inputs spelled out",
+                  "同じグラフの実行用の形。より簡潔で、ノードの入力値がそのまま入る"),
+     "display": "json", "bulky": True},
+
+    # -- training ----------------------------------------------------------
+    {"key": "ss_network_module", "cat": "training",
+     "label": T("network type", "ネットワーク種別"),
+     "explain": T("networks.lora is an ordinary LoRA; lycoris.kohya is one of "
+                  "the LyCORIS variants",
+                  "networks.lora なら通常の LoRA、lycoris.kohya なら LyCORIS 系")},
+    {"key": "ss_network_dim", "cat": "training",
+     "label": T("rank (network_dim)", "rank (network_dim)")},
+    {"key": "ss_network_alpha", "cat": "training", "label": T("alpha", "alpha")},
+    {"key": "ss_network_args", "cat": "training",
+     "label": T("network args", "ネットワーク引数")},
+    {"key": "ss_resolution", "cat": "training",
+     "label": T("training resolution", "学習解像度")},
+    {"key": "ss_clip_skip", "cat": "training", "label": T("clip skip", "clip skip"),
+     "explain": T("how many layers to drop from the end of the text encoder",
+                  "テキストエンコーダの後ろから何層を捨てるか")},
+    {"key": "ss_num_train_images", "cat": "training",
+     "label": T("training images", "学習画像数")},
+    {"key": "ss_num_epochs", "cat": "training", "label": T("epochs", "エポック数")},
+    {"key": "ss_learning_rate", "cat": "training",
+     "label": T("learning rate", "学習率")},
+    {"key": "training_info", "cat": "training",
+     "label": T("training progress", "学習進捗")},
+    {"key": "ss_tag_frequency", "cat": "training",
+     "label": T("tag frequency", "タグ頻度"),
+     "explain": T("the tags on the training images and how often each "
+                  "appeared. The most frequent are the trigger word candidates",
+                  "学習画像に付いていたタグと出現数。上位がトリガー語の候補になる"),
+     "bulky": True},
+    {"key": "ss_datasets", "cat": "training",
+     "label": T("training datasets", "学習データセット"),
+     "explain": T("the training configuration as JSON. It can contain the "
+                  "image directories from the machine that trained it",
+                  "学習設定の JSON。学習した機械の画像ディレクトリを含むことがある"),
+     "display": "json", "bulky": True},
+    {"key": "ss_dataset_dirs", "cat": "training",
+     "label": T("dataset directories", "学習ディレクトリ"),
+     "explain": T("image counts per directory, directory names included",
+                  "ディレクトリごとの画像数。ディレクトリ名を含む"),
+     "bulky": True},
+    {"key": "ss_bucket_info", "cat": "training",
+     "label": T("bucket info", "バケット情報"),
+     "explain": T("how many images fell into each training resolution",
+                  "学習解像度ごとの画像数"),
+     "bulky": True},
+    {"key": "modelspec.resolution", "cat": "training",
+     "label": T("resolution", "解像度")},
+    {"key": "modelspec.prediction_type", "cat": "training",
+     "label": T("prediction type", "予測タイプ"),
+     "explain": T("epsilon predicts the noise, v_prediction the velocity. The "
+                  "sampler has to be set to match",
+                  "epsilon はノイズ予測、v_prediction は速度予測。"
+                  "サンプラー側の設定と揃える必要がある")},
+
+    # -- preview image -----------------------------------------------------
+    {"key": "modelspec.thumbnail", "cat": "image",
+     "label": T("preview", "見本画像"), "display": "image", "bulky": True},
+
+    # -- software and route ------------------------------------------------
+    {"key": "software", "cat": "software",
+     "label": T("producing software", "作成ソフトウェア")},
+    {"key": "modelspec.implementation", "cat": "software",
+     "label": T("implementation", "実装"),
+     "explain": T("the repository of the implementation this format targets",
+                  "この形式が想定している実装のリポジトリ"),
+     "caveat": T("not where this file was distributed from",
+                 "このファイルの配布元ではない")},
+    {"key": "ot_branch", "cat": "software",
+     "label": T("OneTrainer branch", "OneTrainer ブランチ"),
+     "explain": T("the branch of OneTrainer that wrote the file",
+                  "書き出した OneTrainer のブランチ")},
+    {"key": "ot_revision", "cat": "software",
+     "label": T("OneTrainer revision", "OneTrainer リビジョン"),
+     "explain": T("the commit of OneTrainer that wrote the file",
+                  "書き出した OneTrainer のコミット")},
+
+    # -- hashes ------------------------------------------------------------
+    {"key": "modelspec.hash_sha256", "cat": "hash",
+     "label": T("SHA256", "SHA256"),
+     "explain": T("SHA256 of the weights; use it to confirm two files are the "
+                  "same", "重みの SHA256。同一ファイルかの照合に使える")},
+    {"key": "sshs_model_hash", "cat": "hash",
+     "label": T("model hash", "モデルハッシュ"),
+     "explain": T("kohya's own hash, unrelated to SHA256",
+                  "kohya 系が書く独自ハッシュ。SHA256 とは別物")},
+    {"key": "sshs_legacy_hash", "cat": "hash",
+     "label": T("legacy model hash", "旧モデルハッシュ"),
+     "explain": T("the older form of kohya's hash",
+                  "kohya の旧方式のハッシュ")},
+]
+
+# Derived views, so the definition above stays the only place a key is named.
+META_HIGHLIGHT = [(e["key"], e["label"]) for e in META_GUIDE]
+META_BULKY = [e["key"] for e in META_GUIDE if e.get("bulky")]
+META_BY_KEY = {e["key"]: e for e in META_GUIDE}
 
 # Measured values: "stable-diffusion-xl-v1-base", "stable-diffusion-xl-v1-base/lora"
 MODELSPEC_ARCH_MAP = {

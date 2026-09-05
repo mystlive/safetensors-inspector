@@ -194,7 +194,42 @@ verdict**. Two entries settle the base model outright:
 - `training base` (`ss_base_model_version`) — the actual base used for training
 - `declared architecture` (`modelspec.architecture`) — what the producing tool declared
 
-`merged from` tells you what went into a merge.
+`merged from` tells you what went into a merge. `merged LoRAs` and
+`merge strengths` pair up in the same order. A file saved by ComfyUI keeps the
+loaded model names and the merge ratio in `ComfyUI workflow`, so the parents can
+be read off it even with no `merged from` (`--meta` prints it in full).
+
+#### Entries that carry a caveat
+
+Where reading the value plainly goes wrong, a `Caveat:` line follows it.
+
+```
+author: StabilityAI
+Caveat: not necessarily whoever made this file
+```
+
+`author`, `title` and `license` come out of a modelspec block that producing
+tools copy from the base model, so they need not describe this file. Every
+OneTrainer output measured here credits `StabilityAI` and is titled
+`Stable Diffusion XL 1.0 Base LoRA`, whatever it actually contains.
+
+#### In the HTML report
+
+`--html` lays metadata out as **the value on the left, what it means on the
+right**. The right column has three states:
+
+| State | Right column |
+| --- | --- |
+| explained | what it means, plus a caveat where one applies |
+| self-evident | empty |
+| no entry in `rules.py` | says so, rather than going blank - a gap in the table should not look like a value that needs no explanation |
+
+Checkboxes above the table filter by category: identity, origin, lineage,
+training, preview, software and route, hashes. Unticking one hides rows without
+dropping anything from the file, so it can be put back.
+
+`preview` (`modelspec.thumbnail`) is drawn as an image. For a file whose
+identity is lost, that is usually the fastest thing to recognise.
 
 ### Triggers
 

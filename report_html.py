@@ -31,12 +31,15 @@ body {
 header { padding: 18px 20px 12px; border-bottom: 1px solid var(--line); }
 h1 { margin: 0 0 10px; font-size: 17px; font-weight: 600; letter-spacing: .02em; }
 .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-input, select {
+/* Typed by element, not by tag: a bare `input` rule also hits the metadata
+   checkboxes, which then inherit the search box's width. */
+input[type="search"], select {
   background: var(--panel); color: var(--fg); border: 1px solid var(--line);
   border-radius: 4px; padding: 6px 9px; font: inherit;
 }
-input { min-width: min(340px, 60vw); }
-input:focus, select:focus { outline: 1px solid var(--accent); }
+input[type="search"] { min-width: min(340px, 60vw); }
+input[type="search"]:focus, select:focus { outline: 1px solid var(--accent); }
+input[type="checkbox"] { accent-color: var(--accent); margin: 0; }
 .count { color: var(--dim); font-size: 13px; margin-left: auto; }
 .wrap { padding: 0 20px 40px; overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; }
@@ -110,6 +113,40 @@ ul.keys {
   font-family: ui-monospace, Consolas, monospace; font-size: 12px;
 }
 ul.keys li { word-break: break-all; }
+
+/* Metadata: the value on the left, what it means on the right. */
+.detail-inner h3 {
+  margin: 18px 0 0; font-size: 13px; font-weight: 600; color: var(--dim);
+}
+.meta-head {
+  display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center;
+  margin: 10px 0 6px; color: var(--dim); font-size: 12px;
+}
+.meta-head label { display: inline-flex; gap: 4px; align-items: center; cursor: pointer; }
+.meta-head label:hover { color: var(--fg); }
+table.meta { border-collapse: collapse; width: 100%; table-layout: fixed; }
+table.meta th {
+  position: static; background: none; cursor: default; font-size: 12px;
+  padding: 4px 10px 4px 0; border-bottom: 1px solid var(--line);
+}
+table.meta th:last-child, table.meta td:last-child { width: 46%; }
+table.meta td {
+  padding: 7px 10px 7px 0; border-bottom: 1px solid var(--line);
+  vertical-align: top; word-break: break-word;
+}
+table.meta .k { color: var(--dim); display: block; font-size: 12px; }
+table.meta .v { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+table.meta .v.trunc { display: block; max-height: 4.6em; overflow: hidden; }
+table.meta img.thumb {
+  max-width: 220px; max-height: 220px; border-radius: 4px; display: block;
+}
+button.link {
+  background: none; border: 0; color: var(--accent); font: inherit;
+  padding: 0; cursor: pointer; text-decoration: underline;
+}
+.meta-explain { color: var(--fg); }
+.meta-caveat { color: var(--warn); margin-top: 4px; }
+.meta-unknown { color: var(--dim); font-style: italic; }
 tr.more > td { text-align: center; padding: 14px 0; }
 button.more {
   background: var(--panel); color: var(--fg); border: 1px solid var(--line);
@@ -201,6 +238,105 @@ JS = """
       dl.appendChild(dd);
     });
     box.appendChild(dl);
+    box.appendChild(metaNode(r.detail.metadata));
+    return box;
+  }
+
+  // Which metadata categories are on. Shared by every open row, so ticking a
+  // box once applies everywhere.
+  var metaOn = {};
+  (page.meta_categories || []).forEach(function (c) { metaOn[c.id] = true; });
+
+  function valueCell(item) {
+    var td = el('td');
+    td.appendChild(el('span', 'k', item.key));
+    if (item.display === 'image') {
+      var img = document.createElement('img');
+      img.className = 'thumb';
+      img.src = item.value;
+      img.alt = item.label;
+      td.appendChild(img);
+      return td;
+    }
+    var v = el('span', 'v', item.value);
+    // Long values are clipped rather than dropped: everything a file carries
+    // is here, it just does not all have to be on screen at once.
+    if (item.value.length > 220) {
+      v.className = 'v trunc';
+      var more = el('button', 'link', ui.meta_full);
+      more.addEventListener('click', function () {
+        v.className = 'v';
+        more.remove();
+      });
+      td.appendChild(v);
+      td.appendChild(more);
+    } else {
+      td.appendChild(v);
+    }
+    return td;
+  }
+
+  function meaningCell(item) {
+    var td = el('td');
+    if (!item.known) {
+      td.appendChild(el('div', 'meta-unknown', ui.meta_unknown));
+      return td;
+    }
+    if (item.explain) td.appendChild(el('div', 'meta-explain', item.explain));
+    if (item.caveat) td.appendChild(el('div', 'meta-caveat', item.caveat));
+    return td;
+  }
+
+  function metaNode(meta) {
+    var box = el('div');
+    box.appendChild(el('h3', null, ui.meta_title));
+    if (!meta || meta.empty || !meta.items.length) {
+      box.appendChild(el('div', 'hint', ui.meta_none));
+      return box;
+    }
+
+    var present = {};
+    meta.items.forEach(function (i) { present[i.cat] = true; });
+    var head = el('div', 'meta-head');
+    head.appendChild(document.createTextNode(ui.meta_show + ':'));
+    var table = el('table', 'meta');
+
+    (page.meta_categories || []).forEach(function (c) {
+      if (!present[c.id]) return;
+      var label = el('label');
+      var box2 = document.createElement('input');
+      box2.type = 'checkbox';
+      box2.checked = metaOn[c.id] !== false;
+      box2.addEventListener('change', function () {
+        metaOn[c.id] = box2.checked;
+        render();
+      });
+      label.appendChild(box2);
+      label.appendChild(document.createTextNode(c.label));
+      head.appendChild(label);
+    });
+    box.appendChild(head);
+
+    var thead = el('thead');
+    var hr = el('tr');
+    hr.appendChild(el('th', null, ui.meta_raw));
+    hr.appendChild(el('th', null, ui.meta_read));
+    thead.appendChild(hr);
+    table.appendChild(thead);
+
+    var tb = el('tbody');
+    var drawn = 0;
+    meta.items.forEach(function (item) {
+      if (metaOn[item.cat] === false) return;
+      var tr = el('tr');
+      tr.appendChild(valueCell(item));
+      tr.appendChild(meaningCell(item));
+      tb.appendChild(tr);
+      drawn++;
+    });
+    table.appendChild(tb);
+    box.appendChild(table);
+    if (!drawn) box.appendChild(el('div', 'hint', ui.no_match));
     return box;
   }
 

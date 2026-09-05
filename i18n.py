@@ -129,6 +129,11 @@ LABELS = {
         "html_showing": "{n} of {total}",
         "html_show_more": "show more ({n} left)",
         "html_no_match": "nothing matches",
+        "html_meta_raw": "as written",
+        "html_meta_read": "what it means",
+        "html_meta_unknown": "not understood - no entry in rules.py",
+        "html_meta_full": "show all",
+        "html_meta_show": "show",
 
         # stgui.py, the launcher window.
         "gui_title": "safetensors inspector",
@@ -274,6 +279,11 @@ LABELS = {
         "html_showing": "{n} / {total} 件",
         "html_show_more": "続きを表示（残り {n} 件）",
         "html_no_match": "該当なし",
+        "html_meta_raw": "素の値",
+        "html_meta_read": "意訳・解説",
+        "html_meta_unknown": "不明 — rules.py に登録がない",
+        "html_meta_full": "全文",
+        "html_meta_show": "表示",
 
         # stgui.py（ランチャー画面）
         "gui_title": "safetensors inspector",

@@ -642,6 +642,39 @@ def _line(text, prefix="", wrap=False):
     return {"prefix": prefix, "text": text, "wrap": wrap}
 
 
+def build_metadata_items(meta, lang):
+    """Every metadata entry a file carries, in reading order.
+
+    Each item carries what rules.META_GUIDE knows about the key: what it means,
+    and where reading it plainly misleads. `known` False means the key is not in
+    that table at all - reported as such rather than left blank, so that a gap
+    in the table looks different from a key whose value speaks for itself.
+    """
+    if not meta:
+        return {"empty": True, "items": []}
+    cat_label = {c: tr(label, lang) for c, label in rules.META_CATEGORIES}
+
+    def item(key, label, cat, entry):
+        return {
+            "key": key,
+            "label": label,
+            "cat": cat,
+            "cat_label": cat_label.get(cat, cat),
+            "value": str(meta[key]),
+            "display": entry.get("display", "text"),
+            "explain": tr(entry["explain"], lang) if entry.get("explain") else None,
+            "caveat": tr(entry["caveat"], lang) if entry.get("caveat") else None,
+            "bulky": bool(entry.get("bulky")),
+            "known": bool(entry),
+        }
+
+    items = [item(e["key"], tr(e["label"], lang), e["cat"], e)
+             for e in rules.META_GUIDE if e["key"] in meta]
+    listed = {i["key"] for i in items}
+    items += [item(k, k, "other", {}) for k in sorted(meta) if k not in listed]
+    return {"empty": False, "items": items}
+
+
 def build_view(r, lang, full_meta=False, show_keys=False):
     """Assemble everything a report shows, before any formatting.
 
@@ -650,7 +683,8 @@ def build_view(r, lang, full_meta=False, show_keys=False):
     line breaks or markup.
     """
     view = {"name": r["name"], "path": r["path"], "error": None,
-            "stats": "", "head_rows": [], "size_warning": None, "rows": []}
+            "stats": "", "head_rows": [], "size_warning": None, "rows": [],
+            "metadata": {"empty": True, "items": []}}
 
     def add(rows, label_key, first, *rest):
         rows.append({"key": label_key, "label": L(lang, label_key),
@@ -755,25 +789,28 @@ def build_view(r, lang, full_meta=False, show_keys=False):
         add(rows, "label_dialect", _line(L(lang, "naming_mix_1")),
             _line(L(lang, "naming_mix_2")))
 
-    # Metadata
+    # Metadata. The structured form is what the HTML report renders; the lines
+    # below are the terminal's own shape, which collapses what it cannot fit.
     meta = r["metadata"]
+    view["metadata"] = build_metadata_items(meta, lang)
     if meta:
-        shown = [(label, key, meta[key]) for key, label in rules.META_HIGHLIGHT if key in meta]
-        rest = [k for k in meta if k not in {s[1] for s in shown}]
-        if not shown and not full_meta:
+        known = [i for i in view["metadata"]["items"] if i["known"]]
+        rest = [i["key"] for i in view["metadata"]["items"] if not i["known"]]
+        if not known and not full_meta:
             add(rows, "label_metadata", _line(L(lang, "thin_metadata",
                                                 n=len(meta),
                                                 keys=", ".join(sorted(rest)[:6]))))
         else:
-            first, *others = shown or [(None, None, None)]
-            if first[0] is not None:
-                lines = [_line(f"{tr(first[0], lang)}: "
-                               f"{fmt_meta_value(lang, first[1], first[2], full_meta)}")]
-            else:
-                lines = [_line("")]
-            for label, key, v in others:
-                lines.append(_line(f"{tr(label, lang)}: "
-                                   f"{fmt_meta_value(lang, key, v, full_meta)}"))
+            lines = [_line("")] if not known else []
+            for i in known:
+                lines.append(_line(f"{i['label']}: "
+                                   f"{fmt_meta_value(lang, i['key'], meta[i['key']], full_meta)}"))
+                # Caveats travel with the value even in the terminal: whoever is
+                # about to misread one will not go looking for a footnote.
+                if i["caveat"]:
+                    lines.append(_line(i["caveat"],
+                                       prefix=f"{L(lang, 'label_caveat')}: ",
+                                       wrap=True))
             if full_meta:
                 for k in sorted(rest):
                     lines.append(_line(f"{k}: {fmt_meta_value(lang, k, meta[k], True)}"))
@@ -1151,7 +1188,11 @@ def build_page(results, lang, full_meta=False, show_keys=False, summary=True):
                 "size_warning": view["size_warning"] or "",
                 # The quantisation row sits above the rule in the text report;
                 # in a browser there is no rule, so it simply leads the list.
-                "rows": view["head_rows"] + view["rows"],
+                # The metadata row is dropped here and sent structured instead:
+                # the browser draws it as a table of value against explanation.
+                "rows": [e for e in view["head_rows"] + view["rows"]
+                         if e["key"] != "label_metadata"],
+                "metadata": view["metadata"],
             },
             "haystack": " ".join((r["name"], r["path"], f["kind"], f["base"])).lower(),
         })
@@ -1175,7 +1216,16 @@ def build_page(results, lang, full_meta=False, show_keys=False, summary=True):
             "showing": L(lang, "html_showing"),
             "show_more": L(lang, "html_show_more"),
             "no_match": L(lang, "html_no_match"),
+            "meta_title": L(lang, "label_metadata"),
+            "meta_raw": L(lang, "html_meta_raw"),
+            "meta_read": L(lang, "html_meta_read"),
+            "meta_unknown": L(lang, "html_meta_unknown"),
+            "meta_full": L(lang, "html_meta_full"),
+            "meta_show": L(lang, "html_meta_show"),
+            "meta_none": L(lang, "no_metadata"),
         },
+        "meta_categories": [{"id": c, "label": tr(label, lang)}
+                            for c, label in rules.META_CATEGORIES],
         "columns": [{"key": c["key"], "label": L(lang, c["label"]),
                      "numeric": c.get("num", False),
                      "byValue": c.get("by_value", False),

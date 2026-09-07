@@ -1,3 +1,5 @@
+![safetensors-inspector](docs/banner.png)
+
 # safetensors-inspector
 
 Work out what a `.safetensors` file actually is — a full model, a LoRA, a VAE, a

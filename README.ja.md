@@ -1,3 +1,5 @@
+![safetensors-inspector](docs/banner.png)
+
 # safetensors-inspector
 
 素性の分からなくなった `.safetensors` が何なのか — モデル本体か、LoRA か、VAE か、Text Encoder か — そして必要なベースモデルは何かを、重みを読み込まずに判別する。

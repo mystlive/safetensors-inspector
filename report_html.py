@@ -255,6 +255,19 @@ JS = """
       img.className = 'thumb';
       img.src = item.value;
       img.alt = item.label;
+      // The thumbnail is capped at 220px, but the file may hold more than that.
+      // Clicking opens the image itself, at whatever size it really is.
+      img.title = ui.meta_image_open;
+      img.addEventListener('click', function () {
+        var w = window.open('');
+        if (!w) return;
+        var full = w.document.createElement('img');
+        full.src = item.value;
+        full.style.maxWidth = '100%';
+        w.document.body.style.margin = '0';
+        w.document.body.style.background = '#14161a';
+        w.document.body.appendChild(full);
+      });
       td.appendChild(img);
       return td;
     }

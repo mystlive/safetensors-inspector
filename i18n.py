@@ -128,7 +128,8 @@ LABELS = {
 
         "csv_name": "file", "csv_kind": "type", "csv_base": "base",
         "csv_conf": "confidence", "csv_rank": "rank", "csv_size": "size",
-        "csv_tensors": "tensors", "csv_params": "params", "csv_path": "path",
+        "csv_tensors": "tensors", "csv_params": "params",
+        "csv_preview": "preview", "csv_path": "path",
         "csv_error": "error",
 
         # HTML report. "showing" keeps its placeholders: the browser fills them
@@ -143,6 +144,7 @@ LABELS = {
         "html_meta_read": "what it means",
         "html_meta_unknown": "not understood - no entry in rules.py",
         "html_meta_full": "show all",
+        "html_meta_image_open": "Open the image at full size",
         "html_meta_show": "show",
 
         # stgui.py, the launcher window.
@@ -155,6 +157,9 @@ LABELS = {
         "gui_recursive": "include subfolders",
         "gui_meta": "all metadata",
         "gui_keys": "sample keys",
+        "gui_thumbs": "write preview images",
+        "gui_done_thumbs": "{n} preview image(s) written beside it.",
+        "gui_done_thumbs_failed": "{n} could not be extracted.",
         "gui_lang": "language",
         "gui_scan": "Scan",
         "gui_open": "Open report",
@@ -290,7 +295,8 @@ LABELS = {
 
         "csv_name": "ファイル名", "csv_kind": "種別", "csv_base": "ベース推定",
         "csv_conf": "確度", "csv_rank": "rank", "csv_size": "サイズ",
-        "csv_tensors": "tensors", "csv_params": "params", "csv_path": "パス",
+        "csv_tensors": "tensors", "csv_params": "params",
+        "csv_preview": "見本画像", "csv_path": "パス",
         "csv_error": "エラー",
 
         # HTML レポート。showing はプレースホルダのまま渡す（絞り込みに応じて
@@ -305,6 +311,7 @@ LABELS = {
         "html_meta_read": "意訳・解説",
         "html_meta_unknown": "不明 — rules.py に登録がない",
         "html_meta_full": "全文",
+        "html_meta_image_open": "画像を原寸で開く",
         "html_meta_show": "表示",
 
         # stgui.py（ランチャー画面）
@@ -317,6 +324,9 @@ LABELS = {
         "gui_recursive": "サブフォルダも見る",
         "gui_meta": "メタデータを全部",
         "gui_keys": "キー例も出す",
+        "gui_thumbs": "見本画像も書き出す",
+        "gui_done_thumbs": "見本画像 {n} 件も隣に書き出した。",
+        "gui_done_thumbs_failed": "{n} 件は取り出せなかった。",
         "gui_lang": "言語",
         "gui_scan": "走査",
         "gui_open": "レポートを開く",

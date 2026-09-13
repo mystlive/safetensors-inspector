@@ -1220,6 +1220,34 @@ def write_unresolved(results, path, lang):
     return len(u["items"])
 
 
+def preview_images(meta):
+    """Every embedded image a file carries, as (key, decoded) pairs.
+
+    One place decides what counts as an image, so the CSV column, the JSON
+    field and the writer cannot drift apart.
+    """
+    out = []
+    for e in rules.META_GUIDE:
+        if e.get("display") != "image":
+            continue
+        value = (meta or {}).get(e["key"])
+        if isinstance(value, str):
+            out.append((e["key"], decode_data_uri(value)))
+    return out
+
+
+def preview_field(r, lang):
+    """One cell's worth: what the file's preview image is, if it has one."""
+    found = preview_images(r.get("metadata"))
+    if not found:
+        return ""
+    _, img = found[0]
+    if "error" in img:
+        return L(lang, img["error"], mime=img["mime"])
+    return L(lang, "meta_image", kind=img["kind"],
+             size=human_size(len(img["data"])))
+
+
 def thumb_relpath(path: Path, targets, multi: bool):
     """Where a file's image goes under the output directory.
 
@@ -1253,19 +1281,12 @@ def sanitise_part(name: str) -> str:
 def write_thumbnails(results, directory, targets, lang):
     """Write out every embedded image. Returns (written, [(name, reason)])."""
     out = Path(directory)
-    written, failed = 0, []
-    image_keys = [e["key"] for e in rules.META_GUIDE
-                  if e.get("display") == "image"]
+    written, failed = [], []
     # Any two targets can hold same-named files, folders and single files alike,
     # so the count is of targets, not of folders among them.
     multi = len(targets) > 1
     for r in results:
-        meta = r.get("metadata") or {}
-        for key in image_keys:
-            value = meta.get(key)
-            if not isinstance(value, str):
-                continue
-            img = decode_data_uri(value)
+        for _key, img in preview_images(r.get("metadata")):
             if "error" in img:
                 failed.append((r["name"],
                                L(lang, img["error"], mime=img["mime"])))
@@ -1274,7 +1295,7 @@ def write_thumbnails(results, directory, targets, lang):
             dest = out / rel.with_suffix(img["ext"])
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(img["data"])
-            written += 1
+            written.append((r["path"], str(dest)))
     return written, failed
 
 
@@ -1283,6 +1304,17 @@ def to_jsonable(r, lang):
     d = dict(r)
     if isinstance(d.get("error"), HeaderError):
         d["error"] = d["error"].message(lang)
+    # What the embedded images are, without the base64 itself: the raw value is
+    # already in `metadata`, and repeating a megabyte of it here helps nobody.
+    # Where --thumbnails put them is not recorded: this is what the file says,
+    # not what this run happened to do with it.
+    d["previews"] = [
+        {"key": key, "ok": "error" not in img,
+         "format": img.get("kind"), "bytes": len(img["data"]) if "data" in img else None,
+         "declared_type": img.get("mime") or None,
+         "problem": L(lang, img["error"], mime=img["mime"]) if "error" in img else None}
+        for key, img in preview_images(d.get("metadata"))
+    ]
     if d.get("dialect"):
         d["dialect"] = dict(d["dialect"],
                             name=tr(d["dialect"]["name"], lang),
@@ -1342,20 +1374,22 @@ def write_csv(results, path, lang):
         wr = csv.writer(f)
         wr.writerow([L(lang, k) for k in
                      ("csv_name", "csv_kind", "csv_base", "csv_conf", "csv_rank",
-                      "csv_size", "csv_tensors", "csv_params", "csv_path", "csv_error")])
+                      "csv_size", "csv_tensors", "csv_params", "csv_preview",
+                      "csv_path", "csv_error")])
         for r in results:
             if r["error"]:
                 # The size is known even when the header is not, and it is the
                 # first thing you check against the source when a download
                 # looks truncated. The HTML table shows it for the same reason.
                 wr.writerow([r["name"], "", "", "", "",
-                             human_size(r["size_bytes"]), "", "", r["path"],
+                             human_size(r["size_bytes"]), "", "", "", r["path"],
                              error_text(r, lang)])
                 continue
             f = summary_fields(r, lang)
             wr.writerow([r["name"], f["kind"], f["base"], f["conf"], f["rank"],
                          human_size(r["size_bytes"]), r["n_tensors"],
-                         human_count(r["n_params"]), r["path"], ""])
+                         human_count(r["n_params"]), preview_field(r, lang),
+                         r["path"], ""])
 
 
 # How many table rows the HTML report draws before offering "show more".
@@ -1457,6 +1491,7 @@ def build_page(results, lang, full_meta=False, show_keys=False, summary=True):
             "meta_full": L(lang, "html_meta_full"),
             "meta_show": L(lang, "html_meta_show"),
             "meta_none": L(lang, "no_metadata"),
+            "meta_image_open": L(lang, "html_meta_image_open"),
         },
         "meta_categories": [{"id": c, "label": tr(label, lang)}
                             for c, label in rules.META_CATEGORIES],
@@ -1582,9 +1617,10 @@ def main():
         print(L(args.lang, "wrote_unresolved", path=args.unresolved, n=n))
 
     if args.thumbnails:
-        n, failed = write_thumbnails(results, args.thumbnails,
-                                     args.targets or ["."], args.lang)
-        print(L(args.lang, "wrote_thumbnails", n=n, path=args.thumbnails))
+        written, failed = write_thumbnails(results, args.thumbnails,
+                                           args.targets or ["."], args.lang)
+        print(L(args.lang, "wrote_thumbnails", n=len(written),
+                path=args.thumbnails))
         # A value that claims to be an image but is not gets said out loud
         # rather than skipped: a file may be truncated, and that is worth knowing.
         for name, reason in failed:

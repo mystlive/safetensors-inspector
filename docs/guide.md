@@ -257,7 +257,32 @@ training, preview, software and route, hashes. Unticking one hides rows without
 dropping anything from the file, so it can be put back.
 
 `preview` (`modelspec.thumbnail`) is drawn as an image. For a file whose
-identity is lost, that is usually the fastest thing to recognise.
+identity is lost, that is usually the fastest thing to recognise. Clicking it
+opens the image at full size, which the 220px thumbnail may be hiding.
+
+A terminal cannot draw it, so there it says what the value is instead:
+
+```
+  preview: JPEG image, 9.8 KB
+```
+
+To get at the image itself, `--thumbnails DIR` writes every one it finds out as
+a file, mirroring the scanned tree. The GUI has the same thing as a checkbox;
+it puts them in a folder beside the report.
+
+The declared type is not trusted. What a value is gets decided by its first
+bytes, so a PNG labelled `image/jpeg` is written as `.png`. A value that is not
+an image is reported rather than written, with the type it claimed to be:
+
+```
+  preview: not an image: video/mp4
+  preview: declared image/jpeg, but the bytes are not a format we recognise
+```
+
+Few files carry one. Of the 47 public models this project verifies against, 7
+do, and all of them are checkpoints or backbones from Stability AI or Black
+Forest Labs. No video model measured carries one, and neither does any VAE,
+text encoder, ControlNet or embedding.
 
 ### Triggers
 

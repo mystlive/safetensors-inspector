@@ -35,9 +35,10 @@ from i18n import L
 GUI_KEYS = (
     "gui_title", "gui_target", "gui_output", "gui_output_default",
     "gui_output_default_path", "gui_browse", "gui_recursive", "gui_meta",
-    "gui_keys", "gui_lang", "gui_scan", "gui_open", "gui_cancel", "gui_pick_target",
+    "gui_keys", "gui_thumbs", "gui_lang", "gui_scan", "gui_open", "gui_cancel", "gui_pick_target",
     "gui_pick_output", "gui_need_target", "gui_collecting", "gui_progress",
-    "gui_none", "gui_done", "gui_cancelled", "gui_failed",
+    "gui_none", "gui_done", "gui_done_thumbs", "gui_done_thumbs_failed",
+    "gui_cancelled", "gui_failed",
 )
 
 
@@ -62,6 +63,7 @@ class App(tk.Tk):
         self.recursive = tk.BooleanVar(value=True)
         self.full_meta = tk.BooleanVar(value=False)
         self.show_keys = tk.BooleanVar(value=False)
+        self.thumbs = tk.BooleanVar(value=False)
 
         self.events: queue.Queue = queue.Queue()
         self.stop = threading.Event()
@@ -105,11 +107,13 @@ class App(tk.Tk):
         self.labels["meta"].grid(row=0, column=1, padx=(0, 14))
         self.labels["keys"] = ttk.Checkbutton(opts, variable=self.show_keys)
         self.labels["keys"].grid(row=0, column=2, padx=(0, 14))
+        self.labels["thumbs"] = ttk.Checkbutton(opts, variable=self.thumbs)
+        self.labels["thumbs"].grid(row=0, column=3, padx=(0, 14))
         self.labels["lang"] = ttk.Label(opts)
-        self.labels["lang"].grid(row=0, column=3, padx=(0, 6))
+        self.labels["lang"].grid(row=0, column=4, padx=(0, 6))
         box = ttk.Combobox(opts, textvariable=self.lang, values=("en", "ja"),
                            state="readonly", width=5)
-        box.grid(row=0, column=4)
+        box.grid(row=0, column=5)
         box.bind("<<ComboboxSelected>>", lambda _e: self._retranslate())
         # Say where an empty output box will actually write, as soon as there
         # is a folder to name the file after, and offer to open whatever report
@@ -141,6 +145,7 @@ class App(tk.Tk):
         self.labels["recursive"].config(text=L(lang, "gui_recursive"))
         self.labels["meta"].config(text=L(lang, "gui_meta"))
         self.labels["keys"].config(text=L(lang, "gui_keys"))
+        self.labels["thumbs"].config(text=L(lang, "gui_thumbs"))
         self.labels["lang"].config(text=L(lang, "gui_lang"))
         self.labels["open"].config(text=L(lang, "gui_open"))
         self.run.config(text=L(lang, "gui_cancel" if self.worker else "gui_scan"))
@@ -222,12 +227,14 @@ class App(tk.Tk):
         self.worker = threading.Thread(
             target=self._work,
             args=(Path(target), out_path, lang, self.recursive.get(),
-                  self.full_meta.get(), self.show_keys.get()),
+                  self.full_meta.get(), self.show_keys.get(),
+                  self.thumbs.get()),
             daemon=True)
         self.worker.start()
         self._retranslate()
 
-    def _work(self, target, out_path, lang, recursive, full_meta, show_keys):
+    def _work(self, target, out_path, lang, recursive, full_meta, show_keys,
+              thumbs):
         """Runs off the main thread: only the queue may cross back."""
         try:
             files = stinspect.collect_files([str(target)], recursive, lang)
@@ -245,7 +252,16 @@ class App(tk.Tk):
             page = stinspect.build_page(results, lang, full_meta=full_meta,
                                         show_keys=show_keys)
             report_html.write_html(page, out_path)
-            self.events.put(("done", (len(results), out_path)))
+            # The images go beside the report, under a folder named after it,
+            # so the window keeps its single output box: one path in, one place
+            # everything lands.
+            n_thumbs, n_failed = 0, 0
+            if thumbs:
+                thumb_dir = out_path.parent / (out_path.stem + "-thumbnails")
+                written, failed = stinspect.write_thumbnails(
+                    results, thumb_dir, [str(target)], lang)
+                n_thumbs, n_failed = len(written), len(failed)
+            self.events.put(("done", (len(results), out_path, n_thumbs, n_failed)))
         except Exception as exc:                      # noqa: BLE001 - shown to the user
             self.events.put(("failed", exc))
 
@@ -270,8 +286,15 @@ class App(tk.Tk):
                 elif kind == "failed":
                     self._finish(L(lang, "gui_failed", err=payload))
                 elif kind == "done":
-                    n, out_path = payload
-                    self._finish(L(lang, "gui_done", n=n, path=out_path))
+                    n, out_path, n_thumbs, n_failed = payload
+                    msg = L(lang, "gui_done", n=n, path=out_path)
+                    if n_thumbs:
+                        msg += "  " + L(lang, "gui_done_thumbs", n=n_thumbs)
+                    # A value that claimed to be an image but was not is worth
+                    # saying here too, not just in the terminal.
+                    if n_failed:
+                        msg += "  " + L(lang, "gui_done_thumbs_failed", n=n_failed)
+                    self._finish(msg)
                     webbrowser.open(Path(out_path).resolve().as_uri())
         except queue.Empty:
             pass

@@ -19,6 +19,11 @@ Versions are dates. There is no numbering scheme to read into.
   written or silently skipped.
 - The HTML report runs the same check, so a value it cannot draw arrives as an
   explanation instead of a broken `<img>`.
+- The same reading now reaches every output: a `preview` column in the CSV, a
+  `previews` field in the JSON, and a checkbox in the GUI that puts the images
+  in a folder beside the report. One function decides what counts as an image,
+  so the four cannot drift apart.
+- Clicking a preview in the HTML report opens it at full size.
 
 Measured while adding this: of the 47 public models this project verifies
 against, 7 carry a preview image, all of them checkpoints or backbones from

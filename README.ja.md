@@ -104,7 +104,13 @@ python stinspect.py path/to/models -r --lang ja --html auto
 ### 見本画像
 
 メタデータに見本画像を持つファイルがある。`modelspec.thumbnail` に base64 の data URI として入っている。
-ヘッダの中にあるので、読むのに追加の負担はない。HTML レポートはそのまま表示する。
+ヘッダの中にあるので、読むのに追加の負担はない。HTML レポートは他のキーと並べてそのまま表示する。
+
+![HTML レポートに表示された見本画像](docs/preview-in-report.png)
+
+*(SDXL 公式の offset noise サンプル LoRA。この画像がメタデータに入っている。
+スクリーンショットはこのツール自身のレポート)*
+
 `--thumbnails` を付けるとファイルとして書き出す。
 
 ```bash

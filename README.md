@@ -115,7 +115,14 @@ and some editors then misread as the local codepage.
 
 Some files carry a preview image in their metadata, as a base64 data URI under
 `modelspec.thumbnail`. It sits in the header, so reading it costs nothing extra.
-The HTML report shows it inline; `--thumbnails` writes it out as a file:
+The HTML report shows it inline, alongside every other key:
+
+![The preview image shown in the HTML report](docs/preview-in-report.png)
+
+*(SDXL's official offset-noise example LoRA, whose metadata carries this image.
+The screenshot is of this tool's own report.)*
+
+`--thumbnails` writes it out as a file instead:
 
 ```bash
 python stinspect.py path/to/models -r --thumbnails thumbs

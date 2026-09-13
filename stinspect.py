@@ -1084,6 +1084,10 @@ def unresolved_files(results):
     for r in results:
         if r["error"]:
             continue
+        # Some kinds have no base to establish, so an empty base is the right
+        # answer rather than a gap a rule could close.
+        if r.get("kind") in rules.KINDS_WITHOUT_BASE:
+            continue
         if base_of(r, "en") is None:
             out.append(r)
     return out

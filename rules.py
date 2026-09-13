@@ -411,6 +411,9 @@ CROSS_ATTN_PATTERNS = [
     r"attn2_to_[kv]_lora_down_weight$",
     r"attn2_to_[kv]_lora_A_weight$",
     r"attn2_to_[kv]_weight$",
+    # IP-Adapter carries its own cross-attention weights, and their width is the
+    # base model's: 768 on SD1.x, 2048 on SDXL. Measured on h94/IP-Adapter.
+    r"^ip_adapter_\d+_to_[kv]_ip$",
 ]
 
 # =========================================================================
@@ -1148,6 +1151,13 @@ QUANT_RULES = [
 #    ComfyUI maps the legacy names "unet" -> "diffusion_models" and
 #    "clip" -> "text_encoders", so either folder works.
 # =========================================================================
+# Kinds that have no base model to find. They are not listed as "could not
+# identify the base": no rule would ever fill that in.
+#   clip_vision / clip_full  - a CLIP is not built for one diffusion model
+#   t2i_adapter              - measured: its weights carry no cross-attention
+#                              width, so nothing in the file names a base
+KINDS_WITHOUT_BASE = frozenset({"clip_vision", "clip_full", "t2i_adapter"})
+
 PLACEMENT = {
     "checkpoint": ("models/checkpoints",
                    T("Load Checkpoint node, or A1111's models/Stable-diffusion",

@@ -281,12 +281,14 @@ TARGETS = [
          repo="h94/IP-Adapter",
          file="models/ip-adapter_sd15.safetensors",
          license="Apache-2.0", gated=False,
-         expect_kind="ip_adapter", expect_arch=None),
+         # The adapter's own cross-attention weights are 768 wide, which is
+         # SD1.x: the file says which base it was built for.
+         expect_kind="ip_adapter", expect_arch="sd15"),
     dict(id="ip-adapter-sdxl", genre="IP-Adapter (SDXL)",
          repo="h94/IP-Adapter",
          file="sdxl_models/ip-adapter_sdxl.safetensors",
          license="Apache-2.0", gated=False,
-         expect_kind="ip_adapter", expect_arch=None),
+         expect_kind="ip_adapter", expect_arch="sdxl"),
     dict(id="t2i-adapter-sdxl", genre="T2I-Adapter (SDXL, canny)",
          repo="TencentARC/t2i-adapter-canny-sdxl-1.0",
          file="diffusion_pytorch_model.fp16.safetensors",

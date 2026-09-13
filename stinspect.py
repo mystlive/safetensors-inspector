@@ -27,6 +27,7 @@ No third-party dependencies; standard library only.
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
 import json
 import re
@@ -604,8 +605,66 @@ def evidence_text(item, lang):
     return f"{s} ({L(lang, 'hits', n=hits)})" if hits else s
 
 
+# Enough of each format to recognise it from its first bytes. A value that
+# says "image/jpeg" but does not start like a JPEG is reported, not written:
+# this tool does not guess what a file is, and that applies to its metadata too.
+# Each entry is (checks, name, extension), where a check is (offset, bytes).
+# RIFF needs a second check: WAV and AVI open the same way, and writing one of
+# those out as .webp would be a lie.
+IMAGE_MAGIC = (
+    ([(0, b"\x89PNG\r\n\x1a\n")], "PNG", ".png"),
+    ([(0, b"\xff\xd8\xff")], "JPEG", ".jpg"),
+    ([(0, b"GIF87a")], "GIF", ".gif"),
+    ([(0, b"GIF89a")], "GIF", ".gif"),
+    ([(0, b"RIFF"), (8, b"WEBP")], "WEBP", ".webp"),
+)
+
+# Parameters between the type and ";base64" may contain "=" (charset=utf-8),
+# so anything up to the next ";" or "," counts as one.
+DATA_URI_RE = re.compile(r"^data:([\w.+-]+/[\w.+-]+)?(;[^;,]*)*;base64,", re.I)
+
+
+def decode_data_uri(s: str):
+    """Decode an image data URI.
+
+    Returns {"kind", "ext", "data"} when the bytes really are an image, or
+    {"error": <message key>} saying why they are not. Nothing is inferred from
+    the declared type: the first bytes decide.
+    """
+    m = DATA_URI_RE.match(s)
+    if not m:
+        return {"error": "img_err_not_uri", "mime": ""}
+    # The declared type is carried into every failure: when something other than
+    # an image turns up, "video/mp4" says far more than "not an image" does.
+    mime = (m.group(1) or "").lower()
+    if not mime.startswith("image/"):
+        return {"error": "img_err_not_image", "mime": mime or "?"}
+    body = s[m.end():]
+    try:
+        raw = base64.b64decode(body + "=" * (-len(body) % 4))
+    except Exception:
+        return {"error": "img_err_decode", "mime": mime}
+    for checks, kind, ext in IMAGE_MAGIC:
+        if all(raw[at:at + len(sig)] == sig for at, sig in checks):
+            return {"kind": kind, "ext": ext, "data": raw, "mime": mime}
+    return {"error": "img_err_mismatch", "mime": mime}
+
+
 def fmt_meta_value(lang, key, value, full=False):
     s = str(value)
+    # An image is a wall of base64 either way: printing all of it says no more
+    # than printing the data URI's declaration does. --thumbnails writes the
+    # file out for anyone who wants to look at it.
+    if (rules.META_BY_KEY.get(key) or {}).get("display") == "image":
+        if full:
+            head = s[:56]
+            return head + ("..." if len(s) > len(head) else "")
+        img = decode_data_uri(s)
+        if "error" in img:
+            return L(lang, "meta_image_broken",
+                     reason=L(lang, img["error"], mime=img["mime"]))
+        return L(lang, "meta_image", kind=img["kind"],
+                 size=human_size(len(img["data"])))
     if not full and (key in rules.META_BULKY or len(s) > 160):
         return L(lang, "omitted", n=len(s))
     return s
@@ -748,13 +807,23 @@ def build_metadata_items(meta, lang):
     cat_label = {c: tr(label, lang) for c, label in rules.META_CATEGORIES}
 
     def item(key, label, cat, entry):
+        value = str(meta[key])
+        display = entry.get("display", "text")
+        # A value that says "image" but is not one would reach the report as a
+        # broken <img>. Say what it actually is, in the same words the terminal
+        # uses, rather than handing the browser something it cannot draw.
+        if display == "image":
+            img = decode_data_uri(value)
+            if "error" in img:
+                display = "text"
+                value = L(lang, img["error"], mime=img["mime"])
         return {
             "key": key,
             "label": label,
             "cat": cat,
             "cat_label": cat_label.get(cat, cat),
-            "value": str(meta[key]),
-            "display": entry.get("display", "text"),
+            "value": value,
+            "display": display,
             "explain": tr(entry["explain"], lang) if entry.get("explain") else None,
             "caveat": tr(entry["caveat"], lang) if entry.get("caveat") else None,
             "bulky": bool(entry.get("bulky")),
@@ -1151,6 +1220,64 @@ def write_unresolved(results, path, lang):
     return len(u["items"])
 
 
+def thumb_relpath(path: Path, targets, multi: bool):
+    """Where a file's image goes under the output directory.
+
+    The scanned tree is mirrored, so a report stays readable next to the models
+    it came from. Two things are guarded: ".." never survives, so nothing can be
+    written outside the directory the user named, and when more than one target
+    was scanned each gets its own subfolder, so same-named files in different
+    trees do not overwrite each other.
+    """
+    path = Path(path)
+    for i, t in enumerate(targets, 1):
+        root = Path(t)
+        base = root if root.is_dir() else root.parent
+        try:
+            rel = path.resolve().relative_to(base.resolve())
+        except ValueError:
+            continue
+        parts = [p for p in rel.parts if p not in ("..", ".")]
+        # Name the subfolder after the folder that was scanned, which for a
+        # single file is the one holding it, not the file itself.
+        prefix = (Path(sanitise_part(base.name) or f"target{i}"),) if multi else ()
+        return Path(*prefix, *parts)
+    return Path(sanitise_part(path.name))
+
+
+def sanitise_part(name: str) -> str:
+    """Keep a path component usable as a folder name on every platform."""
+    return re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip(" .")
+
+
+def write_thumbnails(results, directory, targets, lang):
+    """Write out every embedded image. Returns (written, [(name, reason)])."""
+    out = Path(directory)
+    written, failed = 0, []
+    image_keys = [e["key"] for e in rules.META_GUIDE
+                  if e.get("display") == "image"]
+    # Any two targets can hold same-named files, folders and single files alike,
+    # so the count is of targets, not of folders among them.
+    multi = len(targets) > 1
+    for r in results:
+        meta = r.get("metadata") or {}
+        for key in image_keys:
+            value = meta.get(key)
+            if not isinstance(value, str):
+                continue
+            img = decode_data_uri(value)
+            if "error" in img:
+                failed.append((r["name"],
+                               L(lang, img["error"], mime=img["mime"])))
+                continue
+            rel = thumb_relpath(r["path"], targets, multi)
+            dest = out / rel.with_suffix(img["ext"])
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(img["data"])
+            written += 1
+    return written, failed
+
+
 def to_jsonable(r, lang):
     """Resolve bilingual fields so the JSON output is plain strings."""
     d = dict(r)
@@ -1399,6 +1526,7 @@ def main():
     ap.add_argument("--html", metavar=f"PATH|{HTML_AUTO}", help=L(lang, "help_html"))
     ap.add_argument("-o", "--out", metavar="PATH", help=L(lang, "help_out"))
     ap.add_argument("--unresolved", metavar="PATH", help=L(lang, "help_unresolved"))
+    ap.add_argument("--thumbnails", metavar="DIR", help=L(lang, "help_thumbnails"))
     ap.add_argument("--no-summary", action="store_true", help=L(lang, "help_no_summary"))
     ap.add_argument("--lang", choices=("en", "ja"), default="en", help=L(lang, "help_lang"))
     args = ap.parse_args()
@@ -1452,6 +1580,15 @@ def main():
     if args.unresolved:
         n = write_unresolved(results, args.unresolved, args.lang)
         print(L(args.lang, "wrote_unresolved", path=args.unresolved, n=n))
+
+    if args.thumbnails:
+        n, failed = write_thumbnails(results, args.thumbnails,
+                                     args.targets or ["."], args.lang)
+        print(L(args.lang, "wrote_thumbnails", n=n, path=args.thumbnails))
+        # A value that claims to be an image but is not gets said out loud
+        # rather than skipped: a file may be truncated, and that is worth knowing.
+        for name, reason in failed:
+            print("  " + L(args.lang, "thumbnail_failed", name=name, reason=reason))
     return 0
 
 

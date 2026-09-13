@@ -16,3 +16,5 @@ _index.md
 *.csv
 report*.txt
 inventory*.txt
+thumbs/
+stinspect-*.html

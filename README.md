@@ -100,15 +100,47 @@ python stinspect.py path/to/models --lang ja
 | `--csv PATH` | write a summary table (UTF-8 with BOM, opens in Excel) |
 | `--html PATH` | write a self-contained HTML report: a sortable, searchable table whose rows open into the full report |
 | `--html auto` | the same, named `stinspect-<folder>.html` in the current folder |
-| `--meta` | print all metadata instead of the highlights |
+| `--meta` | print all metadata instead of the highlights (an embedded image shows its data URI's opening, not the whole base64) |
 | `--keys` | also print sample key names, for investigating unidentified files |
 | `--json` | emit JSON |
 | `--unresolved PATH` | write the files it could not identify, with what a rule would need |
+| `--thumbnails DIR` | write embedded preview images out as files, mirroring the scanned tree |
 | `--no-summary` | skip the summary at the end of a multi-file run |
 | `--lang {en,ja}` | output language (default `en`) |
 
 Prefer `-o` over shell redirection: `>` writes UTF-8 without a BOM, which Notepad
 and some editors then misread as the local codepage.
+
+### Preview images
+
+Some files carry a preview image in their metadata, as a base64 data URI under
+`modelspec.thumbnail`. It sits in the header, so reading it costs nothing extra.
+The HTML report shows it inline; `--thumbnails` writes it out as a file:
+
+```bash
+python stinspect.py path/to/models -r --thumbnails thumbs
+```
+
+The scanned tree is mirrored, so `models/loras/x.safetensors` becomes
+`thumbs/loras/x.jpg`. Scanning more than one target gives each its own subfolder.
+Same-named files are overwritten, and nothing is ever written outside the
+directory you named.
+
+Do not expect many. Of the 47 public models this project verifies against, 7
+carry one, and all 7 are checkpoints or backbones published by Stability AI or
+Black Forest Labs. Every video model measured — Wan 2.1 and 2.2, HunyuanVideo,
+CogVideoX, LTX-Video, Mochi 1 — carries none, and neither does any VAE, text
+encoder, ControlNet or embedding. A trainer does not add one; whoever published
+the file did.
+
+The declared type is not trusted. The first bytes decide what a value is, so a
+PNG labelled `image/jpeg` is written as `.png`, and anything that is not an
+image is reported rather than written:
+
+```
+preview: not an image: video/mp4
+preview: declared image/jpeg, but the bytes are not a format we recognise
+```
 
 ### Without a terminal
 
@@ -263,6 +295,10 @@ gap waiting to be filled.
 [docs/guide.md](docs/guide.md) covers what each line means, how rank and alpha
 combine into the applied scale, what to do when a file is unidentified, and how to
 work out why a LoRA is not taking effect.
+
+## Changelog
+
+Versions are dates, not numbers: [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

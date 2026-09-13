@@ -91,14 +91,42 @@ python stinspect.py path/to/models -r --lang ja --html auto
 | `--csv PATH` | 一覧表を CSV に（UTF-8 BOM 付き。Excel でそのまま開ける） |
 | `--html PATH` | 自己完結の HTML レポートを書き出す（並べ替え・検索できる一覧。行を開くと詳細） |
 | `--html auto` | 同じもの。カレントフォルダに `stinspect-<フォルダ名>.html` として書く |
-| `--meta` | メタデータを省略せず全部出す |
+| `--meta` | メタデータを省略せず全部出す（埋め込まれた画像は data URI の冒頭だけ。base64 全文は出さない） |
 | `--keys` | キー名のサンプルも出す（判別できなかったファイルの調査用） |
 | `--json` | JSON で出力 |
 | `--unresolved PATH` | 判別できなかったファイルを、ルール追加に必要な情報つきで書き出す |
+| `--thumbnails DIR` | 埋め込まれた見本画像をファイルとして書き出す。走査した構造を再現する |
 | `--no-summary` | 複数ファイル走査時の末尾サマリを出さない |
 | `--lang {en,ja}` | 出力言語（既定は `en`） |
 
 ファイルに残すときは `>` ではなく `-o` を使う。`>` は BOM なし UTF-8 で書くため、メモ帳などが Shift_JIS と誤認して化ける。
+
+### 見本画像
+
+メタデータに見本画像を持つファイルがある。`modelspec.thumbnail` に base64 の data URI として入っている。
+ヘッダの中にあるので、読むのに追加の負担はない。HTML レポートはそのまま表示する。
+`--thumbnails` を付けるとファイルとして書き出す。
+
+```bash
+python stinspect.py path/to/models -r --lang ja --thumbnails thumbs
+```
+
+走査した構造を再現するので、`models/loras/x.safetensors` なら `thumbs/loras/x.jpg` になる。
+対象を複数指定したときは、それぞれにサブフォルダを作る。同名のものは上書きし、
+指定したフォルダの外には決して書かない。
+
+**あまり入っていない。** このプロジェクトが検証に使っている公開モデル 47 件のうち、持っているのは 7 件。
+いずれも Stability AI か Black Forest Labs が配布したチェックポイントかバックボーンだった。
+実測した動画モデル（Wan 2.1 / 2.2、HunyuanVideo、CogVideoX、LTX-Video、Mochi 1）はすべて持っておらず、
+VAE、Text Encoder、ControlNet、Embedding も同様。学習ツールが自動で付けるものではなく、配布者が入れたもの。
+
+宣言された種別は信用しない。何であるかは先頭のバイトで決める。
+`image/jpeg` と書かれた PNG は `.png` として書き出すし、画像でないものは書き出さずに報告する。
+
+```
+見本画像: 画像ではない: video/mp4
+見本画像: image/jpeg と宣言されているが、中身が知っている画像形式ではない
+```
 
 ### 端末を使わない場合
 
@@ -220,6 +248,10 @@ python stinspect.py path/to/models -r --lang ja --unresolved todo.txt
 ## 出力の読み方
 
 [docs/guide.ja.md](docs/guide.ja.md) に、各行の意味、rank と alpha から実際の倍率が決まる仕組み、判別できなかったときの調べ方、LoRA が効かないときの切り分け方をまとめてある。
+
+## 変更履歴
+
+版は番号ではなく日付で管理する: [CHANGELOG.ja.md](CHANGELOG.ja.md)。
 
 ## ライセンス
 

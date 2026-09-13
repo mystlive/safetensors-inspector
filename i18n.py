@@ -56,6 +56,10 @@ LABELS = {
         "kind_text_encoder": "Text encoder only",
         "kind_vae": "VAE only",
         "kind_controlnet": "ControlNet",
+        "kind_clip_vision": "CLIP Vision (image encoder only)",
+        "kind_clip_full": "CLIP, both halves (vision + text)",
+        "kind_ip_adapter": "IP-Adapter (image prompt adapter)",
+        "kind_t2i_adapter": "T2I-Adapter (conditioning adapter)",
         "kind_embedding": "Textual Inversion / embedding",
         "kind_unknown": "Not identified",
 
@@ -223,6 +227,10 @@ LABELS = {
         "kind_text_encoder": "Text Encoder 単体",
         "kind_vae": "VAE 単体",
         "kind_controlnet": "ControlNet",
+        "kind_clip_vision": "CLIP Vision 単体（画像側のみ）",
+        "kind_clip_full": "CLIP 本体（画像側＋テキスト側）",
+        "kind_ip_adapter": "IP-Adapter（画像プロンプト adapter）",
+        "kind_t2i_adapter": "T2I-Adapter（条件付け adapter）",
         "kind_embedding": "Textual Inversion / Embedding",
         "kind_unknown": "判別不能",
 

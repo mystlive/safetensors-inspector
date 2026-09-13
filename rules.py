@@ -310,7 +310,42 @@ COMPONENT_RULES = [
     {
         "id": "text_encoder_clip",
         "name": T("Text encoder (CLIP family)", "Text Encoder (CLIP 系)"),
-        "patterns": [r"text_model_encoder_layers_\d+", r"^\d+_transformer_text_model_"],
+        # The last two are open_clip's text half. Its layers sit under
+        # "transformer.", which STRIP_PREFIXES removes as a DiT prefix, so the
+        # layers themselves are unrecognisable afterwards; these two keys are
+        # not stripped and only ever appear on the text side.
+        "patterns": [r"text_model_encoder_layers_\d+", r"^\d+_transformer_text_model_",
+                     r"^token_embedding$", r"^ln_final$"],
+        "verified": "measured",
+    },
+    {
+        # The image half of CLIP. ComfyUI keeps these in models/clip_vision, and
+        # what arrives there is usually this half alone - IP-Adapter ships one.
+        # Measured: h94/IP-Adapter image_encoder (vision_model + visual_projection,
+        # no text side) and laion CLIP-ViT-H-14 in both of its layouts.
+        "id": "vision_encoder_clip",
+        "name": T("Vision encoder (CLIP family)", "Vision Encoder (CLIP 系)"),
+        "patterns": [r"^vision_model_encoder_layers_\d+",
+                     r"^visual_transformer_resblocks_\d+",
+                     r"^visual_(conv1|class_embedding|positional_embedding)"],
+        "verified": "measured",
+    },
+    {
+        # IP-Adapter: an image prompt adapter, not a LoRA. image_proj projects the
+        # CLIP vision embedding; ip_adapter holds the extra cross-attention weights.
+        "id": "ip_adapter",
+        "name": T("IP-Adapter (image prompt adapter)",
+                  "IP-Adapter (画像プロンプト adapter)"),
+        "patterns": [r"^image_proj_(proj|norm)", r"^ip_adapter_\d+_to_[kv]_ip"],
+        "verified": "measured",
+    },
+    {
+        # T2I-Adapter: a light conditioning network, structurally unlike ControlNet.
+        # Measured on TencentARC/t2i-adapter-canny-sdxl-1.0.
+        "id": "t2i_adapter",
+        "name": T("T2I-Adapter (conditioning adapter)",
+                  "T2I-Adapter (条件付け adapter)"),
+        "patterns": [r"^adapter_body_\d+_resnets_\d+_block\d"],
         "verified": "measured",
     },
     {
@@ -1132,6 +1167,27 @@ PLACEMENT = {
     "text_encoder": ("models/text_encoders",
                      T("CLIPLoader / DualCLIPLoader node", "CLIPLoader / DualCLIPLoader ノード")),
     "controlnet": ("models/controlnet", T("ControlNetLoader node", "ControlNetLoader ノード")),
+    "clip_vision": ("models/clip_vision",
+                    T("CLIPVisionLoader node. IP-Adapter and similar image-prompt "
+                      "workflows read it from here",
+                      "CLIPVisionLoader ノード。IP-Adapter など"
+                      "画像プロンプト系がここから読む")),
+    "clip_full": ("models/clip_vision",
+                  T("Both halves of CLIP in one file. The vision half is what "
+                    "ComfyUI wants here; the text half is not read from this folder",
+                    "CLIP の両方が 1 ファイルに入っている。"
+                    "ComfyUI がここで使うのは画像側で、"
+                    "テキスト側はこのフォルダからは読まれない")),
+    "ip_adapter": ("models/ipadapter",
+                   T("IPAdapter nodes (the custom node pack). A CLIP Vision model "
+                     "is needed alongside it",
+                     "IPAdapter 系のノード（カスタムノード）。"
+                     "CLIP Vision も別途必要")),
+    "t2i_adapter": ("models/controlnet",
+                    T("ControlNetLoader node: ComfyUI loads T2I-Adapter through "
+                      "the same node and folder as ControlNet",
+                      "ControlNetLoader ノード。ComfyUI は T2I-Adapter を"
+                      "ControlNet と同じノード・同じフォルダで扱う")),
     "embedding": ("models/embeddings",
                   T("Call it from the prompt as embedding:filename",
                     "プロンプト中に embedding:ファイル名 で呼び出す")),

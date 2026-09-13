@@ -133,8 +133,8 @@ The scanned tree is mirrored, so `models/loras/x.safetensors` becomes
 Same-named files are overwritten, and nothing is ever written outside the
 directory you named.
 
-Do not expect many. Of the 47 public models this project verifies against, 7
-carry one, and all 7 are checkpoints or backbones published by Stability AI or
+Do not expect many. Of the 47 image and video models this project verified at
+the time, 7 carry one, and all 7 are checkpoints or backbones published by Stability AI or
 Black Forest Labs. Every video model measured — Wan 2.1 and 2.2, HunyuanVideo,
 CogVideoX, LTX-Video, Mochi 1 — carries none, and neither does any VAE, text
 encoder, ControlNet or embedding. A trainer does not add one; whoever published
@@ -186,7 +186,7 @@ Every finding comes with its evidence, and every rule carries how well it is
 backed: nothing for one checked against a real file, `[derived, not directly
 measured]` for one taken from the implementation that writes the format, and
 `[unverified / inferred]` for a guess. As of now there are no guesses left —
-47 rules measured, 6 derived — but new architectures will outrun that.
+50 rules measured, 6 derived — but new architectures will outrun that.
 
 ## What it cannot tell you
 
@@ -247,7 +247,7 @@ python tools/probe_header.py path/to/file.safetensors
 ## Verification
 
 Rules are checked against real files, not from memory. `tools/verify_rules.py`
-fetches only the headers of 47 public models over HTTP Range — no weights
+fetches only the headers of 53 public models over HTTP Range — no weights
 are downloaded and nothing is redistributed — and asserts the expected
 classification for each:
 
@@ -267,7 +267,7 @@ python tools/self_check.py
 ```
 
 Five of those live in gated repositories (FLUX.1, SD3.5). Running the tool
-without an account skips them and the other 42 still pass. To include them,
+without an account skips them and the other 48 still pass. To include them,
 accept the licences on Hugging Face yourself and set `HF_TOKEN`.
 
 ## What it could not identify

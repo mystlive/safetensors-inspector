@@ -24,6 +24,16 @@ Versions are dates. There is no numbering scheme to read into.
   in a folder beside the report. One function decides what counts as an image,
   so the four cannot drift apart.
 - Clicking a preview in the HTML report opens it at full size.
+- IP-Adapter, T2I-Adapter and CLIP Vision are identified instead of landing in
+  the unidentified pile, each with the ComfyUI folder and node that reads it.
+- **A CLIP published whole is no longer called a text encoder.** It carries both
+  halves, and ComfyUI wants it in models/clip_vision, not models/text_encoders —
+  the old answer sent it where nothing looks for it. A file holding only the
+  image half is named as such.
+- open_clip's text half was invisible to the component rules: its layers sit
+  under `transformer.`, which the key normaliser strips as a DiT prefix, leaving
+  nothing recognisable. Two keys that survive stripping now stand in for it.
+- Six auxiliary models joined the verification set, which is now 53.
 
 Measured while adding this: of the 47 public models this project verifies
 against, 7 carry a preview image, all of them checkpoints or backbones from

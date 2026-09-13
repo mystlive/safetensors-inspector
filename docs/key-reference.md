@@ -52,6 +52,12 @@ All of these are ungated, so the run needs no account and no token.
 | `stabilityai/sdxl-vae` | `diffusion_pytorch_model.safetensors` | MIT |
 | `latent-consistency/lcm-lora-sdxl` | `pytorch_lora_weights.safetensors` | OpenRAIL++ |
 | `diffusers/controlnet-canny-sdxl-1.0` | `diffusion_pytorch_model.fp16.safetensors` | OpenRAIL++ |
+| `h94/IP-Adapter` | `models/ip-adapter_sd15.safetensors` | Apache-2.0 |
+| `h94/IP-Adapter` | `sdxl_models/ip-adapter_sdxl.safetensors` | Apache-2.0 |
+| `h94/IP-Adapter` | `models/image_encoder/model.safetensors` | Apache-2.0 |
+| `TencentARC/t2i-adapter-canny-sdxl-1.0` | `diffusion_pytorch_model.fp16.safetensors` | Apache-2.0 |
+| `laion/CLIP-ViT-H-14-laion2B-s32B-b79K` | `open_clip_model.safetensors` | MIT |
+| `laion/CLIP-ViT-H-14-laion2B-s32B-b79K` | `model.safetensors` | MIT |
 | `Qwen/Qwen-Image` | `transformer/diffusion_pytorch_model-00001-of-00009.safetensors` | Apache-2.0 |
 | `Qwen/Qwen-Image` | `vae/diffusion_pytorch_model.safetensors` | Apache-2.0 |
 | `Wan-AI/Wan2.1-T2V-1.3B` | `diffusion_pytorch_model.safetensors` | Apache-2.0 |
@@ -105,7 +111,7 @@ the layout that was wanted.
 
 These five are gated. They were checked with an account that had accepted their
 licences; without one, `tools/verify_rules.py` reports them as unreachable and the
-other 42 still run.
+other 48 still run.
 
 | Repository | File | License |
 | --- | --- | --- |
@@ -500,7 +506,7 @@ Patterns must end with `$` or a real separator — never a bare trailing `_`.
 ## Nothing left unverified
 
 Every rule is now either `measured` against a real file or `derived` from a
-primary source. The tally today is 47 measured, 6 derived, 0 unverified, checked against 47 published files.
+primary source. The tally today is 50 measured, 6 derived, 0 unverified, checked against 53 published files.
 
 That will not stay true — new architectures arrive faster than they can be
 checked. When you add a rule without a file to test it against, tag it

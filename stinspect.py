@@ -423,9 +423,21 @@ def classify_file_kind(dialect, components, modules):
     ids = {c["id"] for c in components}
     if "controlnet" in ids:
         return "controlnet"
+    # Adapters carry no backbone of their own, so they have to be named before
+    # the backbone questions below, or they fall through to "unknown".
+    if "ip_adapter" in ids:
+        return "ip_adapter"
+    if "t2i_adapter" in ids:
+        return "t2i_adapter"
     has_backbone = bool(ids & {"unet_ldm", "unet_diffusers", "dit_blocks"})
     has_te = bool(ids & {"text_encoder_clip", "text_encoder_llm", "text_encoder_generic"})
+    has_vision = "vision_encoder_clip" in ids
     has_vae = bool(ids & {"vae_sd", "vae_3d"})
+    # A CLIP published whole carries both halves. Calling that a text encoder
+    # sends it to models/text_encoders, where nothing looks for it: ComfyUI wants
+    # the vision side in models/clip_vision.
+    if has_vision and not has_backbone:
+        return "clip_full" if has_te else "clip_vision"
     if has_backbone and has_te and has_vae:
         return "checkpoint"
     # SD3.5 and Flux are commonly published with the VAE bundled but the text
